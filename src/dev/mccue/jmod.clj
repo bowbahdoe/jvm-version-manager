@@ -393,7 +393,7 @@
 (defn maven-central-artifact
   [& {:keys [type groupId artifactId version classifier]}]
   (let [central "https://repo1.maven.org/maven2/"
-        url     (str "https://repo1.maven.org/maven2/"
+        url     (str central
                      (string/replace groupId "." "/")
                      "/"
                      artifactId
@@ -442,7 +442,7 @@
                                                                        :jar ".jar"
                                                                        :jmod ".jmod"
                                                                        (throw (RuntimeException. (str "type: " type)))))]))))]
-      (.write is bytes))))
+      (^[byte/1] OutputStream/.write is bytes))))
 
 
 
