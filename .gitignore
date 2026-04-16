@@ -1,0 +1,6 @@
+.clj-kondo
+.cpcache
+*.db
+.idea/libraries
+jmods
+test
