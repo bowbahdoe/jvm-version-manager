@@ -1,6 +1,7 @@
 .clj-kondo
 .cpcache
 *.db
+!browser/index.db
 .idea/libraries
 jmods
 test
