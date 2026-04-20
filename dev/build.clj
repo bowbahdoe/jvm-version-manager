@@ -18,10 +18,11 @@
   (b/compile-clj {:basis @basis
                   :ns-compile '[dev.mccue.jdk]
                   :class-dir class-dir})
-  #_(b/uber {:class-dir class-dir
-             :uber-file uber-file
-             :basis @basis
-             :main 'dev.mccue.jdk}))
+  (b/uber {:class-dir class-dir
+           :uber-file uber-file
+           :basis @basis
+           :main 'dev.mccue.jdk
+           :manifest {"Enable-Native-Access" "ALL-UNNAMED"}}))
 
 (defn -main
   [& _]

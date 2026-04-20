@@ -4,3 +4,6 @@
 .idea/libraries
 jmods
 test
+target
+.DS_Store
+.nrepl-port

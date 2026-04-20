@@ -109,9 +109,16 @@
                   (->> (keys enriched-edn)
                        (map name)
                        (set))))
+
+(defn cls
+  []
+  (println "\033[H\033[2J"))
+
 (defn list-all-modules
   [db edn]
-  (let [uniqueness-result (ensure-all-modules-unique db edn)]))
+  (let [uniqueness-result (ensure-all-modules-unique db edn)]
+    (cls)
+    (println uniqueness-result)))
 
 (defn interactive-procure
   []
@@ -141,8 +148,10 @@
           (condp = choice
             "1" (list-all-modules db edn)
             "2" (println "unimplemented 1")
-            "3" (println "unimplemented 2"))
-          (recur))))
+            "3" (println "unimplemented 2")
+            (println "unimplemented 3"))
+          (recur)))
+      (recur))
     edn))
 
 (defn -main

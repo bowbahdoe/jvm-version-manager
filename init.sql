@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS artifact(
-    sha256 text primary key,
+    id integer primary key,
+    sha256 text unique,
     data blob not null,
     unique (sha256)
 );
@@ -21,9 +22,11 @@ CREATE TABLE IF NOT EXISTS provider_maven(
 CREATE TABLE IF NOT EXISTS module_set(
     id integer primary key,
     name text not null,
+    -- version text not null,
     description text not null,
     provider_id integer not null,
-    FOREIGN KEY (provider_id) REFERENCES provider(id)
+    FOREIGN KEY (provider_id) REFERENCES provider(id),
+    UNIQUE (name, provider_id)
 );
 --;
 CREATE TABLE IF NOT EXISTS module_set_element(
@@ -53,7 +56,7 @@ CREATE TABLE IF NOT EXISTS module(
     sha256 text not null unique,
     created_at TEXT NOT NULL DEFAULT current_timestamp,
     unique (name, version, target_platform, provider_id),
-    FOREIGN KEY(sha256) REFERENCES artifact(id)
+    FOREIGN KEY(sha256) REFERENCES artifact(sha256)
 );
 --;
 CREATE TABLE IF NOT EXISTS module_provides(
@@ -94,5 +97,23 @@ CREATE TABLE IF NOT EXISTS module_exports(
     mandated boolean not null,
     synthetic boolean not null,
     unique (module_id, package, "to"),
+    FOREIGN KEY(module_id) REFERENCES module(id)
+);
+--;
+CREATE TABLE IF NOT EXISTS module_package(
+    id integer primary key,
+    module_id integer not null,
+    package text not null,
+    unique (module_id, package),
+    FOREIGN KEY(module_id) REFERENCES module(id)
+);
+--;
+CREATE TABLE IF NOT EXISTS module_hash(
+    id integer primary key,
+    module_id integer not null,
+    module    text not null,
+    algorithm text not null,
+    hash      text not null,
+    unique (module_id, module, algorithm),
     FOREIGN KEY(module_id) REFERENCES module(id)
 );

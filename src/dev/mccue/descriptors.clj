@@ -1,7 +1,11 @@
 (ns dev.mccue.descriptors
   (:require
+    [clojure.string :as string]
     [dev.mccue.jmod.module-info :as mi]
-    [dev.mccue.jmod :refer [maven-central-artifact]]))
+    [dev.mccue.jmod :refer [maven-central-artifact]])
+  (:import (java.io StringReader)
+           (java.nio.charset StandardCharsets)
+           (java.util Map$Entry Properties)))
 
 
 (defn ^:descriptor oracle-jdk
@@ -296,3 +300,38 @@
                    :groupId "org.slf4j"
                    :artifactId "slf4j-api"
                    :version version)]}))
+
+(defn extract-mvn-info
+  [url]
+  (let [[_ version artifact & group] (reverse (rest (rest (rest (rest (string/split url #"/"))))))]
+    {:mvn/version version
+     :mvn/artifactId artifact
+     :mvn/groupId (string/join "." (reverse group))}))
+
+
+(defn for-each-in-index
+  [cb]
+  (let [index (doto (Properties.)
+                (Properties/.load
+                  (StringReader. (slurp "https://raw.githubusercontent.com/sormuras/modules/refs/heads/main/com.github.sormuras.modules/com/github/sormuras/modules/modules.properties"))))]
+    (doall
+      (for [entry index]
+        (cb {:name (Map$Entry/.getKey entry)
+             :url (Map$Entry/.getValue entry)})))))
+
+(comment
+  (for-each-in-index
+    (fn [{:keys [url]}]
+      (extract-mvn-info url))))
+(defn get-all-from-index
+  []
+  (for-each-in-index
+    (fn [{:keys [name url]}]
+      {:name name
+       :type :jar
+       :artifacts [(merge {:url url}
+                          (extract-mvn-info url))]})))
+
+
+
+

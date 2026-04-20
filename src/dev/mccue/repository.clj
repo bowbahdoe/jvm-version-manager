@@ -1,9 +1,13 @@
 (ns dev.mccue.repository
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [next.jdbc :as jdbc]
             [clojure.pprint :as pprint]
             [dev.mccue.jmod :refer [fetch-artifact determine-archive-type]])
-  (:import (java.security MessageDigest)
+  (:import (java.io InputStream OutputStream)
+           (java.nio.file Files Path)
+           (java.nio.file.attribute FileAttribute)
+           (java.security MessageDigest)
            (java.util HexFormat)
            (org.sqlite SQLiteDataSource)))
 
@@ -143,7 +147,34 @@
                                 (or (:mandated exports)
                                     false)
                                 (or (:synthetic exports)
-                                    false)]))))))))
+                                    false)])))
+
+          (doseq [{:keys [package]} (:packages (:module-info artifact))]
+            (jdbc/execute! t [(String/.stripIndent
+                                "INSERT INTO module_package(
+                                     module_id,
+                                     package
+                                  )
+                                  VALUES (?, ?)
+                                  ON CONFLICT DO NOTHING")
+                              module-id
+                              package]))
+
+          (let [{:keys [algorithm hashes]} (:hashes (:module-info artifact))]
+            (doseq [{:keys [module hash]} hashes]
+              (jdbc/execute! t [(String/.stripIndent
+                                  "INSERT INTO module_hash(
+                                       module_id,
+                                       module,
+                                       algorithm,
+                                       hash
+                                    )
+                                    VALUES (?, ?, ?, ?)
+                                    ON CONFLICT DO NOTHING")
+                                module-id
+                                module
+                                algorithm
+                                hash]))))))))
 
 
 
@@ -177,6 +208,25 @@
                      "0da876dba16e9ade6c3ec5448e1b589b7332d007cc89b75309cd10674112380d"))
 
 
+(defn build-index
+  [db]
+  (let [temp-file (Files/createTempFile "new" ".db" (into-array FileAttribute []))]
+    (try
+      (let [index  (str temp-file)
+            new-db (from-file index)
+            old-db-path (-> (SQLiteDataSource/.getUrl db)
+                            (string/replace-first "jdbc:sqlite:" ""))]
+        (jdbc/with-transaction [t new-db]
+          (jdbc/execute! t [(str "ATTACH DATABASE '" old-db-path "' as 'Y';")])
+          (let [tables (->> (jdbc/execute! t ["SELECT name FROM sqlite_master WHERE type='table';"])
+                            (map :sqlite_master/name)
+                            (filter #(not= % "artifact")))]
+            (doseq [table tables]
+              (jdbc/execute! t [(str "INSERT INTO " table " SELECT * FROM Y." table ";")]))))
+        (with-open [is (io/input-stream (Path/.toFile temp-file))]
+          (InputStream/.readAllBytes is)))
+      (finally (Files/deleteIfExists temp-file)))))
+
 (defn build-distro
   []
   (let [db (from-file "modules.db")
@@ -190,3 +240,8 @@
         (println "Pick your java.base:")
         (doseq [{:module/keys [name version target_platform]} results]
           (println (str "1: " name "@" version ", " target_platform)))))))
+
+(comment
+  (^[byte/1] OutputStream/.write
+    (io/output-stream "browser/index.db")
+    (build-index (from-file "modules.db"))))

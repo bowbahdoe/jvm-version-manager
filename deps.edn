@@ -5,6 +5,10 @@
         seancorfield/next.jdbc              {:mvn/version "1.2.659"}
         org.clojure/tools.deps              {:mvn/version "0.29.1598"}
         dev.mccue/color-terminal            {:mvn/version "2024.11.20"}
-        org.slf4j/slf4j-nop                 {:mvn/version "2.0.17"}}
+        org.slf4j/slf4j-nop                 {:mvn/version "2.0.17"}
+        ring/ring                           {:mvn/version "1.15.3"}
+        seesaw/seesaw                       {:mvn/version "1.5.0"}
+        hiccup/hiccup                       {:mvn/version "2.0.0"}
+        cheshire/cheshire                   {:mvn/version "6.1.0"}}
  :aliases {:build {:extra-paths ["dev"]
-                   :extra-deps {io.github.clojure/tools.build {:mvn/version "0.10.13"}}}}}
+                   :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.10.13"}}}}}

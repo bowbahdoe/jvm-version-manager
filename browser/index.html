@@ -1,0 +1,126 @@
+<html lang="en">
+<head>
+    <style>
+        .module {
+            margin: 4px;
+            border: 2px solid black;
+
+            border-radius: 2px;
+            width: fit-content;
+            padding: 4px;
+        }
+
+        .module_static {
+            margin: 4px;
+            border: 2px dashed black;
+
+            border-radius: 2px;
+            width: fit-content;
+            padding: 4px;
+        }
+    </style>
+    <title>Modules Graph</title>
+</head>
+<body style="margin: 0">
+
+    <script src="force-graph-3d.js"></script>
+    <script src="force-graph.js"></script>
+    <script src="sql-wasm.js"></script>
+
+
+    <div id="module-details">
+
+    </div>
+    <script type="application/javascript">
+        function moduleElement(db, name, static) {
+            const div = document.createElement("div");
+            if (static) {
+                div.classList.add("module_static")
+            }
+            else {
+                div.classList.add("module");
+            }
+            div.innerText = name;
+            div.onclick = (e => {
+                const result = db.exec(`
+                    SELECT module, static
+                    FROM module_requires
+                    WHERE (module_id IN (SELECT id FROM module WHERE name=?))
+                    ORDER BY module DESC `, [name]);
+
+                document.getElementById("names").replaceChildren()
+
+
+                for (const row of result) {
+                    for (const value of row.values) {
+                        console.info(value)
+                        document.getElementById("names")
+                            .appendChild(moduleElement(db, value[0], value[1] === 1))
+
+                    }
+                }
+
+            })
+            return div
+        }
+        (async function() {
+            const SQL = await window.initSqlJs({
+            });
+            const data = await (await fetch("/index.db")).bytes();
+            const db = new SQL.Database(data);
+            const result = db.exec("SELECT DISTINCT(name) FROM module ORDER BY name ")[0];
+            for (const value of result.values) {
+                // document.getElementById("names")
+                //    .appendChild(moduleElement(db, value[0]))
+            }
+
+            let i = 0;
+            const names = [];
+            const nodes = [];
+            for (const row of db.exec("SELECT DISTINCT(name), mvn_groupId FROM module WHERE name <> 'java.base' ORDER BY name")[0].values) {
+
+                nodes.push({
+                    "id": row[0],
+                    name: row[0],
+                    group: row[1]/*
+                    val: row[0],
+                    radiusX: 5,
+                    radiusY: 5*/
+                })
+                names.push(row[0])
+            }
+
+            i = 0;
+            const links = [];
+
+            for (const name of names) {
+                for (const row of db.exec(
+                    `SELECT module, static, mandated, transitive
+                    FROM module_requires
+                    WHERE (module_id IN (SELECT id FROM module WHERE name=?))
+                    ORDER BY module DESC `, [name])[0]?.values || []) {
+
+                    if (names.includes(row[0])) {
+                        links.push({
+                            "source": name,
+                            "target": row[0]
+                        })
+                    }
+
+                }
+            }
+
+            const myGraph = new ForceGraph3D(document.getElementById("module-details"))
+                .graphData({
+                    "nodes":nodes,
+                    "links": links
+                })
+                .nodeAutoColorBy('group')
+                .enableNodeDrag(false)
+                .linkWidth(0.5)
+                .nodeOpacity(1)
+                .graphData(gData);
+        })()
+    </script>
+</body>
+</html>

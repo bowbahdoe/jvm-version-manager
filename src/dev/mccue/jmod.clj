@@ -270,16 +270,30 @@
                                (:bytes fetched-artifact))
                 module-bytes (let [mi (module-info-from-archive-bytes module-bytes)
                                    new-mi (cond
-                                            (not (:version mi))
+                                            (and (not (:version mi))
+                                                 (:mvn/version artifact))
                                             (assoc mi :version (:mvn/version artifact))
 
-                                            (not= (:version mi) (:mvn/version artifact))
-                                            (throw (ex-info (str "Module version does not match maven version. module version="
-                                                                 (:version mi)
-                                                                 ", maven version="
-                                                                 (:mvn/version artifact))
+                                            (not (:version mi))
+                                            (throw (ex-info (str "No version in module-info.")
                                                             {:artifact artifact
                                                              :module-info mi}))
+
+                                            (and (:mvn/version artifact)
+                                                 (not= (:version mi) (:mvn/version artifact)))
+                                            (binding [*out* *err*]
+                                              (println (str "Module version does not match maven version. module version="
+                                                            (:version mi)
+                                                            ", maven version="
+                                                            (:mvn/version artifact)))
+                                              mi)
+                                            #_(throw (ex-info (str "Module version does not match maven version. module version="
+                                                                   (:version mi)
+                                                                   ", maven version="
+                                                                   (:mvn/version artifact))
+                                                              {:artifact artifact
+                                                               :module-info mi}))
+
                                             :else
                                             mi)]
                                (if (not= mi new-mi)
@@ -462,9 +476,17 @@
         (write-module "jmods/" module))))
 
   (dump-windows-amd64 (dev.mccue.descriptors/oracle-jdk))
+  (require '[dev.mccue.repository :as rep])
 
-  (procure {:fetch (partial #'rep/fetch-cached (rep/from-file "modules.db"))}
-           (dev.mccue.descriptors/spring-core))
+  (let [db (rep/from-file "modules.db")]
+    (procure {:fetch (partial #'rep/fetch-cached db)}
+             (dev.mccue.descriptors/oracle-jdk)))
+
+  (let [db (rep/from-file "modules.db")]
+    (doseq [artifact (procure {:fetch (partial #'rep/fetch-cached db)}
+                              (dev.mccue.descriptors/oracle-jdk))]
+      (rep/persist-module db artifact)))
+
   (do (require '[dev.mccue.descriptors])
       (require '[dev.mccue.repository :as rep])
       (let [descriptors (->> (ns-publics 'dev.mccue.descriptors)
@@ -472,10 +494,29 @@
                              (filterv (comp :descriptor meta))
                              (mapv (fn [f] (f))))]
         ;;version available for org.eclipse.jetty/jetty-server. current=12.1.5, new=12.1.8
-        ;;clojure.lang.ExceptionInfo: Expected module name does not match name in module-info.class. expected=com.zaxxer.hikari, actual=org.eclipse.jetty.server {:expected-module-name "com.zaxxer.hikari", :actual-module-info {:name "org.eclipse.jetty.server", :exports [{:package "org.eclipse.jetty.server"} {:package "org.eclipse.jetty.server.handler"} {:package "org.eclipse.jetty.server.handler.gzip"} {:package "org.eclipse.jetty.server.handler.jmx", :to ["org.eclipse.jetty.jmx"]} {:package "org.eclipse.jetty.server.jmx", :to ["org.eclipse.jetty.jmx"]}], :requires [{:module "java.base", :version "17", :mandated true} {:module "org.eclipse.jetty.http", :version "12.1.5", :transitive true} {:module "org.slf4j", :version "2.0.17", :transitive true} {:module "org.eclipse.jetty.jmx", :version "12.1.5", :static true}], :provides [], :uses [], :version "12.1.5", :packages [{:package "org.eclipse.jetty.server"} {:package "org.eclipse.jetty.server.handler"} {:package "org.eclipse.jetty.server.handler.gzip"} {:package "org.eclipse.jetty.server.handler.jmx"} {:package "org.eclipse.jetty.server.internal"} {:package "org.eclipse.jetty.server.jmx"}]}}
         (doseq [descriptor descriptors]
           (println "-----")
           (println (:name descriptor))
           (try (doseq [artifact (procure {:fetch (partial rep/fetch-cached (rep/from-file "modules.db"))} descriptor)]
-                 (rep/persist-module (rep/from-file "modules.db") artifact))
+                 (rep/persist-module (rep/from-file "modules.db") artifact)
+                 (catch Exception e (Exception/.printStackTrace e)))))))
+  (do (require '[dev.mccue.descriptors])
+      (require '[dev.mccue.repository :as rep])
+      (let [descriptors (dev.mccue.descriptors/get-all-from-index)
+            db          (rep/from-file "modules.db")]
+        ;;version available for org.eclipse.jetty/jetty-server. current=12.1.5, new=12.1.8
+        (doseq [descriptor (sort-by :name descriptors)]
+          (println "-----")
+          (println (:name descriptor))
+          (try (doseq [artifact (procure {:fetch (partial rep/fetch-cached db)} descriptor)]
+                 (rep/persist-module db artifact))
                (catch Exception e (Exception/.printStackTrace e)))))))
+
+
+;; Hard to manage
+;; - keeping up with updates
+
+;; "Big Companies"
+;; "Small Companies"
+;; "Open Source"
+;; "Indies"
