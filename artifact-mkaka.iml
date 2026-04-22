@@ -2,7 +2,7 @@
 <module type="JAVA_MODULE" version="4">
   <component name="BuildSystem">
     <option name="buildSystemId" value="CLOJURE_DEPS" />
-    <option name="displayName" value="jvm-version-manager" />
+    <option name="displayName" value="artifact-mkaka" />
   </component>
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
@@ -41,7 +41,7 @@
     <orderEntry type="library" name="Deps: org.eclipse.jetty.ee9.websocket/jetty-ee9-websocket-jetty-common:12.1.0" level="project" />
     <orderEntry type="library" name="Deps: org.swinglabs.swingx/swingx-action:1.6.3" level="project" />
     <orderEntry type="library" name="Deps: dev.mccue/color:2024.10.11" level="project" />
-    <orderEntry type="library" name="Deps: com.fasterxml.jackson.dataformat/jackson-dataformat-cbor:2.20.0" level="project" />
+    <orderEntry type="library" name="Deps: com.fasterxml.jackson.dataformat/jackson-dataformat-cbor:2.21.1" level="project" />
     <orderEntry type="library" name="Deps: org.apache.maven.resolver/maven-resolver-transport-http:1.8.2" level="project" />
     <orderEntry type="library" name="Deps: seesaw:1.5.0" level="project" />
     <orderEntry type="library" name="Deps: org.apache.maven/maven-model-builder:3.8.8" level="project" />
@@ -55,7 +55,7 @@
     <orderEntry type="library" name="Deps: commons-io:2.20.0" level="project" />
     <orderEntry type="library" name="Deps: org.apache.maven/maven-settings-builder:3.8.8" level="project" />
     <orderEntry type="library" name="Deps: org.clojure/tools.namespace:1.5.1" level="project" />
-    <orderEntry type="library" name="Deps: com.fasterxml.jackson.core/jackson-core:2.20.0" level="project" />
+    <orderEntry type="library" name="Deps: com.fasterxml.jackson.core/jackson-core:2.21.1" level="project" />
     <orderEntry type="library" name="Deps: org.apache.commons/commons-fileupload2-core:2.0.0-M4" level="project" />
     <orderEntry type="library" name="Deps: j18n:1.0.2" level="project" />
     <orderEntry type="library" name="Deps: org.ring-clojure/ring-jakarta-servlet:1.15.3" level="project" />
@@ -63,6 +63,7 @@
     <orderEntry type="library" name="Deps: org.ow2.asm/asm:9.2" level="project" />
     <orderEntry type="library" name="Deps: org.apache.maven/maven-settings:3.8.8" level="project" />
     <orderEntry type="library" name="Deps: dev.mccue/color-terminal:2024.11.20" level="project" />
+    <orderEntry type="library" name="Deps: metosin/reitit-ring:0.10.1" level="project" />
     <orderEntry type="library" name="Deps: org.swinglabs.swingx/swingx-painters:1.6.3" level="project" />
     <orderEntry type="library" name="Deps: org.eclipse.jetty.ee9/jetty-ee9-servlet:12.1.0" level="project" />
     <orderEntry type="library" name="Deps: org.eclipse.jetty/jetty-unixdomain-server:12.1.0" level="project" />
@@ -74,6 +75,7 @@
     <orderEntry type="library" name="Deps: org.codehaus.plexus/plexus-sec-dispatcher:2.0" level="project" />
     <orderEntry type="library" name="Deps: org.apache.maven/maven-core:3.8.8" level="project" />
     <orderEntry type="library" name="Deps: com.miglayout/miglayout:3.7.4" level="project" />
+    <orderEntry type="library" name="Deps: metosin/reitit-core:0.10.1" level="project" />
     <orderEntry type="library" name="Deps: org.apache.maven.resolver/maven-resolver-api:1.8.2" level="project" />
     <orderEntry type="library" name="Deps: hiccup:2.0.0" level="project" />
     <orderEntry type="library" name="Deps: riddley:0.1.12" level="project" />
@@ -102,7 +104,7 @@
     <orderEntry type="library" name="Deps: crypto-equality:1.0.1" level="project" />
     <orderEntry type="library" name="Deps: org.eclipse.jetty.ee9/jetty-ee9-security:12.1.0" level="project" />
     <orderEntry type="library" name="Deps: com.google.inject/guice$no_aop:4.2.2" level="project" />
-    <orderEntry type="library" name="Deps: cheshire:6.1.0" level="project" />
+    <orderEntry type="library" name="Deps: cheshire:6.2.0" level="project" />
     <orderEntry type="library" name="Deps: tigris:0.1.2" level="project" />
     <orderEntry type="library" name="Deps: org.eclipse.jetty/jetty-client:9.4.58.v20250814" level="project" />
     <orderEntry type="library" name="Deps: org.swinglabs.swingx/swingx-core:1.6.3" level="project" />
@@ -139,9 +141,10 @@
     <orderEntry type="library" name="Deps: org.apache.maven/maven-builder-support:3.8.8" level="project" />
     <orderEntry type="library" name="Deps: ring/ring-core:1.15.3" level="project" />
     <orderEntry type="library" name="Deps: org.clojure/core.cache:1.1.234" level="project" />
+    <orderEntry type="library" name="Deps: meta-merge:1.0.0" level="project" />
     <orderEntry type="library" name="Deps: org.apache.maven/maven-plugin-api:3.8.8" level="project" />
     <orderEntry type="library" name="Deps: org.clojure/core.async:1.8.741" level="project" />
-    <orderEntry type="library" name="Deps: com.fasterxml.jackson.dataformat/jackson-dataformat-smile:2.20.0" level="project" />
+    <orderEntry type="library" name="Deps: com.fasterxml.jackson.dataformat/jackson-dataformat-smile:2.21.1" level="project" />
     <orderEntry type="library" name="Deps: org.apache.maven/maven-artifact:3.8.8" level="project" />
   </component>
 </module>

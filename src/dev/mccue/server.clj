@@ -5,7 +5,8 @@
             [next.jdbc :as jdbc]
             [hiccup2.core :as hiccup]
             [clojure.pprint :as pprint]
-            [cheshire.core :as cheshire]))
+            [cheshire.core :as cheshire]
+            [reitit.ring :as reitit-ring]))
 
 (defn hiccup-response
   [& {:keys [body status]}]
@@ -43,7 +44,7 @@
                     (with-out-str (pprint/pprint form)))))])
 
 
-(defn handler
+(defn index-handler
   [{:system/keys [db active-module-set-atom]
     :as system}
    request]
@@ -106,6 +107,14 @@
     (catch Exception e
       (Exception/.printStackTrace e)
       (throw e))))
+
+(defn handler
+  [system request]
+  ((reitit-ring/ring-handler
+     (reitit-ring/router
+       ["/" {:get {:handler (partial #'index-handler system)}}]))
+   request))
+
 
 
 

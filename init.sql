@@ -7,7 +7,10 @@ CREATE TABLE IF NOT EXISTS artifact(
 --;
 CREATE TABLE IF NOT EXISTS provider(
     id integer primary key,
-    name text not null unique
+    name text not null unique,
+    -- Whether the provider was "made up" in the system
+    -- and there is no actual user who represents the provider
+    synthetic boolean not null
 );
 --;
 CREATE TABLE IF NOT EXISTS provider_maven(
@@ -22,11 +25,11 @@ CREATE TABLE IF NOT EXISTS provider_maven(
 CREATE TABLE IF NOT EXISTS module_set(
     id integer primary key,
     name text not null,
-    -- version text not null,
+    version text not null,
     description text not null,
-    provider_id integer not null,
+    provider_id integer,
     FOREIGN KEY (provider_id) REFERENCES provider(id),
-    UNIQUE (name, provider_id)
+    UNIQUE (name, version)
 );
 --;
 CREATE TABLE IF NOT EXISTS module_set_element(
@@ -116,4 +119,16 @@ CREATE TABLE IF NOT EXISTS module_hash(
     hash      text not null,
     unique (module_id, module, algorithm),
     FOREIGN KEY(module_id) REFERENCES module(id)
+);
+--;
+-- A module set published for the consumption of
+-- other users.
+CREATE TABLE IF NOT EXISTS published_module_set(
+    id integer primary key,
+    module_set_id integer not null,
+    provider_id integer not null,
+    name text not null,
+    FOREIGN KEY(module_set_id) REFERENCES module_set_id(id),
+    FOREIGN KEY(provider_id) REFERENCES provider(id),
+    UNIQUE (module_set_id, provider_id)
 );

@@ -12,15 +12,15 @@
   []
   {:type :jdk
    :artifacts [{:url "https://download.oracle.com/java/25/latest/jdk-25_windows-x64_bin.zip"
-                :hashes {"sha256" "56fbc625835eaa4e96942e9d8df38ffdf6009e0062620aaf9a8b647a5cd8ec7a"}}
+                :hashes {"sha256" (slurp "https://download.oracle.com/java/25/latest/jdk-25_windows-x64_bin.zip.sha256")}}
                {:url "https://download.oracle.com/java/25/latest/jdk-25_macos-aarch64_bin.tar.gz"
-                :hashes {"sha256" "045d17ca8a00f77d91f43a12c8a023598837acc576d0701193ccf560f62ef4b4"}}
+                :hashes {"sha256" (slurp "https://download.oracle.com/java/25/latest/jdk-25_macos-aarch64_bin.tar.gz.sha256")}}
                {:url "https://download.oracle.com/java/25/latest/jdk-25_macos-x64_bin.tar.gz"
-                :hashes {"sha256" "e4f4a4b10883c1d3a0a1cefa9cd3e4ac1ed8b8e053d12ab34adc39a6875b984d"}}
+                :hashes {"sha256" (slurp "https://download.oracle.com/java/25/latest/jdk-25_macos-x64_bin.tar.gz.sha256")}}
                {:url "https://download.oracle.com/java/25/latest/jdk-25_linux-aarch64_bin.tar.gz"
-                :hashes {"sha256" "1aaf2d46506ecdf15569d5d3f0c2295a7c18795ec7a6ee030cf19406daccd0dc"}}
+                :hashes {"sha256" (slurp "https://download.oracle.com/java/25/latest/jdk-25_linux-aarch64_bin.tar.gz.sha256")}}
                {:url "https://download.oracle.com/java/25/latest/jdk-25_linux-x64_bin.tar.gz"
-                :hashes {"sha256" "505fdcb1f172b4aad23415f0584912cff90b7d902adc5f1593894b4a8cbf7c39"}}]})
+                :hashes {"sha256" (slurp "https://download.oracle.com/java/25/latest/jdk-25_linux-x64_bin.tar.gz.sha256")}}]})
 
 (defn ^:descriptor javafx
   []
