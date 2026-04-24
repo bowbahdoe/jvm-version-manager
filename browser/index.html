@@ -68,11 +68,6 @@
             });
             const data = await (await fetch("/index.db")).bytes();
             const db = new SQL.Database(data);
-            const result = db.exec("SELECT DISTINCT(name) FROM module ORDER BY name ")[0];
-            for (const value of result.values) {
-                // document.getElementById("names")
-                //    .appendChild(moduleElement(db, value[0]))
-            }
 
             let i = 0;
             const names = [];

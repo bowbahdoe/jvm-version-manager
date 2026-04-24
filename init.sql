@@ -128,7 +128,29 @@ CREATE TABLE IF NOT EXISTS published_module_set(
     module_set_id integer not null,
     provider_id integer not null,
     name text not null,
-    FOREIGN KEY(module_set_id) REFERENCES module_set_id(id),
+    FOREIGN KEY(module_set_id) REFERENCES module_set(id),
     FOREIGN KEY(provider_id) REFERENCES provider(id),
     UNIQUE (module_set_id, provider_id)
 );
+--;
+-- Grants permission to a publisher to publish modules
+-- with a name. I.E. if we grant oracle
+-- the ability to publish modules with the java. prefix
+-- they can do so, but if a provider does not have that
+-- permission they cannot.
+--
+-- This can also be permission to publish an exact module.
+-- If so, the prefix column will be set to false.
+CREATE TABLE IF NOT EXISTS provider_module_permission(
+    id integer primary key,
+    provider_id integer not null,
+    module text not null,
+    -- If true, this permission is for publishing an *exact*
+    -- module name, not for a specific prefix.
+    prefix boolean not null default true,
+    -- Set to a time when/if permission to publish modules under a prefix
+    -- is revoked
+    revoked_at TEXT,
+    FOREIGN KEY (provider_id) REFERENCES provider(id),
+    UNIQUE (provider_id, prefix)
+)

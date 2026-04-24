@@ -10,6 +10,8 @@
         seesaw/seesaw                       {:mvn/version "1.5.0"}
         hiccup/hiccup                       {:mvn/version "2.0.0"}
         cheshire/cheshire                   {:mvn/version "6.2.0"}
-        metosin/reitit-ring                 {:mvn/version "0.10.1"}}
+        metosin/reitit-ring                 {:mvn/version "0.10.1"}
+        metosin/reitit-middleware           {:mvn/version "0.10.1"}
+        com.github.seancorfield/honeysql    {:mvn/version "2.7.1368"}}
  :aliases {:build {:extra-paths ["dev"]
                    :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.10.13"}}}}}
