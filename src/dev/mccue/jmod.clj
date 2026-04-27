@@ -554,19 +554,9 @@
       (require '[dev.mccue.repository :as rep])
       (let [descriptors (dev.mccue.descriptors/get-all-from-index)
             db          (rep/from-file "modules.db")]
-        ;;version available for org.eclipse.jetty/jetty-server. current=12.1.5, new=12.1.8
         (doseq [descriptor (sort-by :name descriptors)]
           (println "-----")
           (println (:name descriptor))
           (try (doseq [artifact (procure {:fetch (partial rep/fetch-cached db)} descriptor)]
                  (rep/persist-module db artifact))
                (catch Exception e (Exception/.printStackTrace e)))))))
-
-
-;; Hard to manage
-;; - keeping up with updates
-
-;; "Big Companies"
-;; "Small Companies"
-;; "Open Source"
-;; "Indies"

@@ -66,8 +66,8 @@ CREATE TABLE IF NOT EXISTS module_provides(
     id integer primary key,
     module_id integer not null,
     service text not null,
-    with text not null,
-    unique (module_id, service, with),
+    "with" text not null,
+    unique (module_id, service, "with"),
     FOREIGN KEY(module_id) REFERENCES module(id)
 );
 --;
@@ -153,4 +153,40 @@ CREATE TABLE IF NOT EXISTS provider_module_permission(
     revoked_at TEXT,
     FOREIGN KEY (provider_id) REFERENCES provider(id),
     UNIQUE (provider_id, prefix)
-)
+);
+--;
+-- Automatically ingest and track an artifact from maven.
+-- New versions should be discovered by a background process;
+CREATE TABLE IF NOT EXISTS maven_tracked_artifact(
+    id integer primary key,
+    mvn_repository text not null,
+    mvn_groupId text not null,
+    mvn_artifactId text not null,
+    -- Provider to assign ingested artifacts to
+    provider_id integer,
+    -- Only ingest artifacts after the given version
+    start_version text
+);
+--;
+CREATE TABLE IF NOT EXISTS maven_ingestion_job(
+    id integer primary key,
+    maven_tracked_artifact_id integer,
+    mvn_repository text not null,
+    mvn_groupId text not null,
+    mvn_artifactId text not null,
+    mvn_version text not null,
+    mvn_classifier text not null,
+    mvn_type text not null,
+    started_at text not null default current_timestamp,
+    finished_at text not null default current_timestamp,
+    error text,
+    FOREIGN KEY (maven_tracked_artifact_id) REFERENCES maven_tracked_artifact(id)
+);
+--;
+CREATE TABLE IF NOT EXISTS maven_ingestion_job_module(
+    id integer primary key,
+    maven_ingestion_job_id integer not null,
+    module_id integer not null,
+    FOREIGN KEY(maven_ingestion_job_id) REFERENCES maven_ingestion_job(id),
+    FOREIGN KEY(module_id) REFERENCES module(id)
+);
