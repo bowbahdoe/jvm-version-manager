@@ -340,32 +340,6 @@
             (^[byte/1] JarOutputStream/.write jar-out module-info-bytes)
             (JarOutputStream/.closeEntry jar-out)))))))
 
-(comment
-  (enrich-jar
-    {:in-path "test-modules/clojure.jar"
-     :out-path "clojure-moduled.jar"
-     :module-info {:name "org.clojure"
-                   :requires [{:module "java.xml"}
-                              {:module "java.desktop"}
-                              {:module "jdk.unsupported"}]
-                   :exports (mapv (fn [pkg]
-                                    (println pkg)
-                                    {:package pkg})
-                                  (packages-in-jar "test-modules/clojure.jar"))}})
-
-
-
-  (from-bytes
-    (to-bytes {:name "org.clojure"
-               :requires [{:module "java.xml"}
-                          {:module "java.desktop"}
-                          {:module "jdk.unsupported"}]
-               :exports [{:package "clojure"}
-                         {:package "clojure.asm"}
-                         {:package "clojure.core"}
-                         {:package "clojure.data"}]
-               :main-class "a.apple"})))
-
 (defn packages-in-jar
   [jar]
   (with-open [jar-file (if (instance? JarFile jar)
@@ -388,43 +362,3 @@
                 (recur packages))
               (recur packages)))
           packages)))))
-
-(comment
-  (packages-in-jar "jmods/java.base.jmod"))
-
-(comment
-  (mapv (fn [package]
-          {:package package})
-        (packages-in-jar "clojure-1.12.4.jar"))
-  (mapv :package
-      (packages-in-jar "spec.alpha-0.6.249.jar"))
-
-  (enrich-jar
-    {:in-path "spec.alpha-0.6.249.jar"
-     :out-path "jmods/org.clojure.spec.alpha.jar"
-     :module-info {:name "org.clojure.spec.alpha"
-                   :version "0.6.249"
-                   :open true}})
-
-  (enrich-jar
-    {:in-path "core.specs.alpha-0.5.81.jar"
-     :out-path "jmods/org.clojure.core.specs.alpha.jar"
-     :module-info {:name "org.clojure.core.specs.alpha"
-                   :version "0.5.81"
-                   :open true}})
-
-  (enrich-jar
-    {:in-path "clojure-1.12.4.jar"
-     :out-path "jmods/org.clojure.jar"
-     :module-info {:name "org.clojure"
-                   :requires [{:module "java.xml"}
-                              {:module "java.desktop"}
-                              {:module "java.sql"}
-                              {:module "jdk.unsupported"}
-                              {:module "org.clojure.core.specs.alpha"}
-                              {:module "org.clojure.spec.alpha"}]
-                   :version "1.12.4"
-                   :open true
-                   :exports (mapv (fn [package]
-                                    {:package package})
-                                  (packages-in-jar "clojure-1.12.4.jar"))}}))
