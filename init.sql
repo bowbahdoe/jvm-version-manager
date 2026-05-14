@@ -190,3 +190,25 @@ CREATE TABLE IF NOT EXISTS maven_ingestion_job_module(
     FOREIGN KEY(maven_ingestion_job_id) REFERENCES maven_ingestion_job(id),
     FOREIGN KEY(module_id) REFERENCES module(id)
 );
+--;
+CREATE TABLE IF NOT EXISTS jdk_ingestion_job(
+    id integer primary key,
+    windows_amd64_url text,
+    windows_amd64_sha256_url text,
+    windows_amd64_sha256 text,
+    macos_aarch64_url text,
+    macos_aarch64_sha256_url text,
+    macos_aarch64_sha256 text,
+    linux_aarch64_url text,
+    linux_aarch64_sha256_url text,
+    linux_aarch64_sha256 text,
+    linux_amd64_url text,
+    linux_amd64_sha256_url text,
+    linux_amd64_sha256 text,
+    provider_id integer not null,
+    started_at text,
+    finished_at text,
+    error text,
+    FOREIGN KEY (provider_id) REFERENCES provider(id)
+);
+

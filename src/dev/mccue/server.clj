@@ -63,11 +63,11 @@
            [:body {:style "font-family: monospace"} body]]))
 
 (defn index-handler
-  [{:system/keys [db active-module-set-atom]
+  [{:system/keys [db]
     :as          system}
    request]
   (try
-    (let [active-module-set @active-module-set-atom
+    (let [active-module-set {}
           selected-modules (keys active-module-set)]
       (cond
         (empty? selected-modules)
@@ -417,13 +417,9 @@
 
 (defn start!
   []
-  (let [db (repository/from-file "modules.db")
-        active-module-set-atom (atom {"java.base"           {:version "25.0.2"}
-                                      "java.desktop"        {:version "25.0.2"}
-                                      "dev.mccue.tools.jdk" {:version "2025.01.31"}})]
+  (let [db (repository/from-file "modules.db")]
     (jetty/run-jetty
-      (partial #'handler {:system/db                     db
-                          :system/active-module-set-atom active-module-set-atom})
+      (partial #'handler {:system/db                     db})
       {:port  8999
        :join? false})))
 

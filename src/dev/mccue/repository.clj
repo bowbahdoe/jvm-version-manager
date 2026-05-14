@@ -9,6 +9,7 @@
            (java.nio.file.attribute FileAttribute)
            (java.security MessageDigest)
            (java.util HexFormat)
+           (net.ttddyy.dsproxy.support ProxyDataSource ProxyDataSourceBuilder)
            (org.sqlite SQLiteDataSource)))
 
 (defn from-file
@@ -17,9 +18,12 @@
              (SQLiteDataSource/.setUrl (str "jdbc:sqlite:" path)))]
     (doseq [command (-> (slurp "init.sql")
                         (string/split #"--;"))]
-      (jdbc/execute! db [command]))
 
-    db))
+      (println (jdbc/execute! db [command])))
+
+    (-> (ProxyDataSourceBuilder/create db)
+        (ProxyDataSourceBuilder/.logQueryToSysOut)
+        (ProxyDataSourceBuilder/.build))))
 
 (defn persist-artifact
   [db artifact]

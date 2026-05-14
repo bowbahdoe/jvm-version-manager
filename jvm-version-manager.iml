@@ -130,6 +130,7 @@
     <orderEntry type="library" name="Deps: org.clojure/tools.reader:1.6.0" level="project" />
     <orderEntry type="library" name="Deps: org.ring-clojure/ring-core-protocols:1.15.3" level="project" />
     <orderEntry type="library" name="Deps: org.swinglabs.swingx/swingx-common:1.6.3" level="project" />
+    <orderEntry type="library" name="Deps: net.ttddyy/datasource-proxy:1.11.0" level="project" />
     <orderEntry type="library" name="Deps: org.eclipse.jetty.ee9/jetty-ee9-webapp:12.1.0" level="project" />
     <orderEntry type="library" name="Deps: potemkin:0.4.7" level="project" />
     <orderEntry type="library" name="Deps: org.clojure/tools.gitlibs:2.6.212" level="project" />
