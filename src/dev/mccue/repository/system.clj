@@ -1,15 +1,13 @@
 (ns dev.mccue.repository.system
-  (:require [dev.mccue.repository.server :as server]
-            [dev.mccue.repository.ingestion :as ingestion]
+  (:require [dev.mccue.repository.ingestion :as ingestion]
+            [dev.mccue.repository.server :as server]
             [next.jdbc.connection :as connection]
             [ring.adapter.jetty :as jetty])
   (:import (com.zaxxer.hikari HikariDataSource)
-           (java.time.temporal ChronoUnit)
            (java.util.concurrent Executors ScheduledExecutorService TimeUnit)
            (net.ttddyy.dsproxy.listener.logging SLF4JLogLevel)
            (net.ttddyy.dsproxy.support ProxyDataSourceBuilder)
-           (org.eclipse.jetty.server Server)
-           (javax.sql DataSource)))
+           (org.eclipse.jetty.server Server)))
 
 
 (defn start-server!
