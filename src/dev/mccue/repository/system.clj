@@ -76,3 +76,7 @@
   (do
     (stop! system)
     (alter-var-root #'system (fn [& _] nil))))
+
+(defn -main
+  [& args]
+  (start!))
