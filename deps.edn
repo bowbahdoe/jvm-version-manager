@@ -16,7 +16,8 @@
         net.ttddyy/datasource-proxy           {:mvn/version "1.11.0"}
         org.postgresql/postgresql             {:mvn/version "42.7.8"}
         com.zaxxer/HikariCP                   {:mvn/version "7.0.2"}
-        msolli/proletarian                    {:mvn/version "1.0.115"}}
+        msolli/proletarian                    {:mvn/version "1.0.115"}
+        dev.mccue/duke                        {:local/root "jars/duke-2025.11.09-uber.jar"}}
  :paths ["src" "res"]
  :aliases {:dev   {:extra-paths ["dev"]
                    :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.10.13"}}}

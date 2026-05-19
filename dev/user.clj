@@ -1,5 +1,5 @@
 (ns user
-  (:require [dev.mccue.repository.system :as system]))
+  (:require [dev.mccue.system :as system]))
 
 (def system nil)
 

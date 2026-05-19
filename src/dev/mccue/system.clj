@@ -1,6 +1,6 @@
-(ns dev.mccue.repository.system
+(ns dev.mccue.system
   (:require [dev.mccue.repository.ingestion :as ingestion]
-            [dev.mccue.repository.server :as server]
+            [dev.mccue.server :as server]
             [next.jdbc.connection :as connection]
             [ring.adapter.jetty :as jetty])
   (:import (com.zaxxer.hikari HikariDataSource)
@@ -14,7 +14,7 @@
   [{:system/keys [db]}]
   (jetty/run-jetty
     (partial #'server/handler {:system/db db})
-    {:port  (or (parse-long (System/getenv "PORT"))
+    {:port  (or (some-> (System/getenv "PORT") (parse-long))
                 8999)
      :join? false}))
 

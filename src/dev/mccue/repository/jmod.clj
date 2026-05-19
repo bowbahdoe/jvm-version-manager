@@ -1,9 +1,8 @@
 (ns dev.mccue.repository.jmod
-  (:require [clojure.string :as str]
-            [dev.mccue.repository.module-info :as mi]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.string :as string]
-            [clojure.tools.deps.tree :as deps-tree]
+            [dev.mccue.repository.module-info :as mi]
             [next.jdbc :as jdbc])
   (:import (java.io ByteArrayInputStream File InputStream OutputStream PrintStream)
            (java.nio.file Files Path)
@@ -16,8 +15,7 @@
            (javax.xml.xpath XPath XPathFactory)
            (org.apache.commons.compress.archivers ArchiveEntry ArchiveInputStream)
            (org.apache.commons.compress.archivers.tar TarArchiveInputStream)
-           (org.apache.commons.compress.archivers.zip ZipArchiveInputStream ZipFile)
-           (org.w3c.dom Document)))
+           (org.apache.commons.compress.archivers.zip ZipArchiveInputStream)))
 
 (defn- check-hash!
   [artifact-description bytes]

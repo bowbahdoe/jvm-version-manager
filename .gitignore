@@ -8,3 +8,4 @@ target
 .DS_Store
 .nrepl-port
 data
+migrations/environments/production.properties

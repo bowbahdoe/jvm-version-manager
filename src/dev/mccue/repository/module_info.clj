@@ -1,27 +1,26 @@
 (ns dev.mccue.repository.module-info
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [clojure.string :as string])
   (:import (java.io InputStream)
            (java.lang.classfile ClassBuilder ClassFile ClassModel)
            (java.lang.classfile.attribute ModuleAttribute
-                                          ModuleAttribute$ModuleAttributeBuilder
-                                          ModuleExportInfo
-                                          ModuleHashInfo
-                                          ModuleHashesAttribute
-                                          ModuleMainClassAttribute
-                                          ModulePackagesAttribute
-                                          ModuleProvideInfo
-                                          ModuleRequireInfo
-                                          ModuleTargetAttribute)
+                                ModuleAttribute$ModuleAttributeBuilder
+                                ModuleExportInfo
+                                ModuleHashInfo
+                                ModuleHashesAttribute
+                                ModuleMainClassAttribute
+                                ModulePackagesAttribute
+                                ModuleProvideInfo
+                                ModuleRequireInfo
+                                ModuleTargetAttribute)
            (java.lang.classfile.constantpool ClassEntry ModuleEntry PackageEntry Utf8Entry)
            (java.lang.constant ClassDesc ModuleDesc PackageDesc)
            (java.lang.reflect AccessFlag)
-           (java.nio.file CopyOption Path Files StandardCopyOption)
+           (java.nio.file CopyOption Files Path StandardCopyOption)
            (java.nio.file.attribute FileAttribute)
            (java.util Collection Enumeration HexFormat List Optional Set)
-           (java.util.jar Attributes Attributes$Name JarEntry JarFile JarOutputStream Manifest)
-           (java.util.zip ZipFile))
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
-            [clojure.edn :as edn]))
+           (java.util.jar Attributes Attributes$Name JarEntry JarFile JarOutputStream Manifest)))
 
 (defn from-bytes
   "Reads the bytes of a module-info.class file into a map."

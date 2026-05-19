@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS repository.provider_maven(
     updated_at timestamptz not null default now(),
     unique (mvn_groupId, mvn_repository),
     FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+        on update restrict
+        on delete restrict
 );
 CREATE TRIGGER set_repository_provider_maven_updated_at
     BEFORE UPDATE ON repository.provider_maven
@@ -77,6 +79,8 @@ CREATE TABLE IF NOT EXISTS repository.module(
     created_at TEXT NOT NULL DEFAULT current_timestamp,
     unique (name, version, target_platform, provider_id),
     FOREIGN KEY(sha256) REFERENCES repository.artifact(sha256)
+        on update restrict
+        on delete restrict
 );
 --;
 CREATE TABLE IF NOT EXISTS repository.module_provides(
@@ -86,6 +90,8 @@ CREATE TABLE IF NOT EXISTS repository.module_provides(
     "with" text not null,
     unique (module_id, service, "with"),
     FOREIGN KEY(module_id) REFERENCES repository.module(id)
+        on update restrict
+        on delete restrict
 );
 --;
 CREATE TABLE IF NOT EXISTS repository.module_uses(
@@ -94,6 +100,8 @@ CREATE TABLE IF NOT EXISTS repository.module_uses(
     service text not null,
     unique (module_id, service),
     FOREIGN KEY(module_id) REFERENCES repository.module(id)
+        on update restrict
+        on delete restrict
 );
 --;
 CREATE TABLE IF NOT EXISTS repository.module_requires(
@@ -107,6 +115,8 @@ CREATE TABLE IF NOT EXISTS repository.module_requires(
     synthetic boolean not null,
     unique (module_id, module),
     FOREIGN KEY(module_id) REFERENCES repository.module(id)
+        on update restrict
+        on delete restrict
 );
 --;
 CREATE TABLE IF NOT EXISTS repository.module_exports(
@@ -118,6 +128,8 @@ CREATE TABLE IF NOT EXISTS repository.module_exports(
     synthetic boolean not null,
     unique (module_id, package, "to"),
     FOREIGN KEY(module_id) REFERENCES repository.module(id)
+        on update restrict
+        on delete restrict
 );
 --;
 CREATE TABLE IF NOT EXISTS repository.module_package(
@@ -126,6 +138,8 @@ CREATE TABLE IF NOT EXISTS repository.module_package(
     package text not null,
     unique (module_id, package),
     FOREIGN KEY(module_id) REFERENCES repository.module(id)
+        on update restrict
+        on delete restrict
 );
 --;
 CREATE TABLE IF NOT EXISTS repository.module_hash(
@@ -136,6 +150,8 @@ CREATE TABLE IF NOT EXISTS repository.module_hash(
     hash      text not null,
     unique (module_id, module, algorithm),
     FOREIGN KEY(module_id) REFERENCES repository.module(id)
+        on update restrict
+        on delete restrict
 );
 --;
 CREATE TABLE IF NOT EXISTS repository.module_set(
@@ -146,7 +162,9 @@ CREATE TABLE IF NOT EXISTS repository.module_set(
     provider_id uuid,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
-    FOREIGN KEY (provider_id) REFERENCES repository.provider(id),
+    FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+        on update restrict
+        on delete restrict,
     UNIQUE (name, version)
 );
 
@@ -162,8 +180,12 @@ CREATE TABLE IF NOT EXISTS repository.module_set_element(
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     unique (module_set_id, module_id),
-    FOREIGN KEY (module_set_id) REFERENCES repository.module_set(id),
+    FOREIGN KEY (module_set_id) REFERENCES repository.module_set(id)
+        on update restrict
+        on delete restrict,
     FOREIGN KEY (module_id) REFERENCES repository.module(id)
+        on update restrict
+        on delete restrict
 );
 
 CREATE TRIGGER set_repository_module_set_element_updated_at
@@ -181,8 +203,12 @@ CREATE TABLE IF NOT EXISTS repository.published_module_set(
     name text not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
-    FOREIGN KEY(module_set_id) REFERENCES repository.module_set(id),
-    FOREIGN KEY(provider_id) REFERENCES repository.provider(id),
+    FOREIGN KEY(module_set_id) REFERENCES repository.module_set(id)
+        on update restrict
+        on delete restrict,
+    FOREIGN KEY(provider_id) REFERENCES repository.provider(id)
+        on update restrict
+        on delete restrict,
     UNIQUE (module_set_id, provider_id)
 );
 
@@ -212,7 +238,9 @@ CREATE TABLE IF NOT EXISTS repository.provider_module_permission(
     revoked_at timestamptz,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
-    FOREIGN KEY (provider_id) REFERENCES repository.provider(id),
+    FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+        on update restrict
+        on delete restrict,
     UNIQUE (provider_id, prefix)
 );
 
@@ -235,6 +263,8 @@ CREATE TABLE IF NOT EXISTS repository.maven_tracked_artifact(
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+        on update restrict
+        on delete restrict
 );
 
 CREATE TRIGGER set_repository_maven_tracked_artifact_updated_at
@@ -257,6 +287,8 @@ CREATE TABLE IF NOT EXISTS repository.maven_ingestion_job(
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     FOREIGN KEY (maven_tracked_artifact_id) REFERENCES repository.maven_tracked_artifact(id)
+        on update restrict
+        on delete restrict
 );
 
 CREATE TRIGGER set_repository_maven_ingestion_job_updated_at
@@ -270,8 +302,12 @@ CREATE TABLE IF NOT EXISTS repository.maven_ingestion_job_module(
     module_id uuid not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
-    FOREIGN KEY(maven_ingestion_job_id) REFERENCES repository.maven_ingestion_job(id),
+    FOREIGN KEY(maven_ingestion_job_id) REFERENCES repository.maven_ingestion_job(id)
+        on update restrict
+        on delete restrict,
     FOREIGN KEY(module_id) REFERENCES repository.module(id)
+        on update restrict
+        on delete restrict
 );
 
 CREATE TRIGGER set_repository_maven_ingestion_job_module_updated_at
@@ -300,6 +336,8 @@ CREATE TABLE IF NOT EXISTS repository.jdk_ingestion_job(
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+        on update restrict
+        on delete restrict
 );
 
 CREATE TRIGGER set_repository_jdk_ingestion_job_updated_at

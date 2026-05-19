@@ -1,53 +1,17 @@
-(ns dev.mccue.repository.server
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+(ns dev.mccue.repository.routes
+  (:require [clojure.string :as string]
             [next.jdbc :as jdbc]
             [hiccup2.core :as hiccup]
             [clojure.pprint :as pprint]
-            [reitit.ring :as reitit-ring]
             [reitit.ring.middleware.exception :as reitit-exception]
             [reitit.ring.middleware.parameters :as reitit-parameters]
-            [honey.sql :as h])
+            [honey.sql :as h]
+            [dev.mccue.page.helpers :as page-helpers])
   (:import (java.lang.module ModuleDescriptor$Version)))
-
-(defn hiccup-response
-  [& {:keys [body status]}]
-  {:status  (or status 200)
-   :headers {"Content-Type" "text/html"}
-   :body    (str (hiccup/html body))})
-
-(def solid-box
-  ["margin: 4px"
-   "border: 2px solid black"
-   "border-radius: 2px"
-   "width: fit-content"
-
-   "height: fit-content"
-   "padding: 4px"])
-
-(def dashed-box
-  ["margin: 4px"
-   "border: 2px dashed black"
-   "border-radius: 2px"
-   "width: fit-content"
-   "height: fit-content"
-   "padding: 4px"])
-
-(defn css
-  [classes]
-  (string/join ";" classes))
-
-(defn scittle-script
-  [& code]
-  [:script {:type "application/x-scittle"}
-   (hiccup/raw
-     (string/join "\n"
-                  (for [form code]
-                    (with-out-str (pprint/pprint form)))))])
 
 (defn page-response
   [& {:keys [title head body status]}]
-  (hiccup-response
+  (page-helpers/hiccup-response
     :status status
     :body [:html {:lang "en"}
            [:head
@@ -73,21 +37,12 @@
 
         :else
         (page-response
-          :head (list [:script {:src "https://cdn.jsdelivr.net/npm/scittle@0.8.31/dist/scittle.js"}]
-                      [:script {:src "https://cdn.jsdelivr.net/npm/scittle@0.8.31/dist/scittle.promesa.js"}]
-                      [:script {:src "https://cdn.jsdelivr.net/npm/scittle@0.8.31/dist/scittle.js-interop.js"}]
-                      (scittle-script
-                        '(println "Hello")
-
-                        '(require (quote [promesa.core :as p]))
-
-                        '(p/let [x 5]
-                                (js/alert x))))
+          
           :body
           (list
             (doall
               (for [[name {:keys [version]}] active-module-set]
-                [:div {:style (css solid-box)}
+                [:div {:style (page-helpers/css page-helpers/solid-box)}
                  [:h1 name]
                  (let [rows (jdbc/execute! db ["SELECT module_requires.module as module
                                                               FROM module_requires
@@ -99,7 +54,7 @@
                                                name version])]
                    (list
                      [:p "Platforms"]
-                     [:p {:style (css solid-box)}
+                     [:p {:style (page-helpers/css page-helpers/solid-box)}
                       (string/join ", " (sort (map :module/target_platform
                                                    (jdbc/execute! db
                                                                   ["SELECT module.target_platform
@@ -107,7 +62,7 @@
                                                                    name]))))]
                      [:p "Requires " [:span {:style "font: bold"} "^"]]
                      (for [{:module_requires/keys [module]} rows]
-                       [:div {:style (css (conj solid-box "margin-left: 20px"))}
+                       [:div {:style (page-helpers/css (conj page-helpers/solid-box "margin-left: 20px"))}
                         (list
                           [:p (if (active-module-set module)
                                 {}
@@ -165,39 +120,16 @@
                             [:like :module/name (str "%" module-name "%")]
                             [:= 1 0])]})
         modules (jdbc/execute! db query)]
-    (hiccup-response
+    (page-helpers/hiccup-response
       :status 200
       :body [:ul
              (for [module modules]
                [:li {:id (:module/id module)}
-                [:a {:style (css ["color: black"])
+                [:a {:style (page-helpers/css ["color: black"])
                      :href  (str "/module/" (:module/name module))}
-                 [:div {:style (css (conj solid-box "margin-left: 20px"))}
+                 [:div {:style (page-helpers/css (conj page-helpers/solid-box "margin-left: 20px"))}
                   (:module/name module)]]])])))
 
-(def htmx-js (slurp (io/resource "htmx.js")))
-
-(defn htmx-handler
-  [_ _]
-  {:status  200
-   :headers {"Content-Type" "application/json"}
-   :body    htmx-js})
-
-(def alpine-js (slurp (io/resource "alpine.js")))
-
-(defn alpine-handler
-  [_ _]
-  {:status  200
-   :headers {"Content-Type" "application/json"}
-   :body    alpine-js})
-
-(def force-graph-js (slurp (io/resource "force-graph.js")))
-
-(defn force-graph-handler
-  [_ _]
-  {:status  200
-   :headers {"Content-Type" "application/json"}
-   :body    force-graph-js})
 
 (defn get-latest-module-version
   [db & {:keys [name provider-id]}]
@@ -259,30 +191,30 @@
 
 (defn module-table
   [db to-render]
-  [:div {:style (css ["max-width: 800px"
-                      "width: 100%"])}
+  [:div {:style (page-helpers/css ["max-width: 800px"
+                                   "width: 100%"])}
 
-   [:div {:style (css (concat solid-box
-                              ["width: 100%"
-                               "margin-bottom: 16px"]))}
+   [:div {:style (page-helpers/css (concat page-helpers/solid-box
+                                           ["width: 100%"
+                                            "margin-bottom: 16px"]))}
     [:h1 {:style "margin: 0"} (:module/name to-render)]
 
-    [:div {:style (css ["display: flex"
-                        "gap: 10px"
-                        "margin-top: 8px"])}
-     [:span {:style (css dashed-box)}
+    [:div {:style (page-helpers/css ["display: flex"
+                                     "gap: 10px"
+                                     "margin-top: 8px"])}
+     [:span {:style (page-helpers/css page-helpers/dashed-box)}
       (str "Version: " (:module/version to-render))]
-     [:span {:style (css dashed-box)}
+     [:span {:style (page-helpers/css page-helpers/dashed-box)}
       (str "Platforms: " (string/join ", " (:module/target_platforms to-render)))]]]
 
    (list
      (when (seq (:requires to-render))
-       [:div {:style  (css (concat solid-box
-                                   ["width: 100%"
-                                    "margin-bottom: 12px"]))
+       [:div {:style  (page-helpers/css (concat page-helpers/solid-box
+                                                ["width: 100%"
+                                                 "margin-bottom: 12px"]))
               :x-data "{ open: false }"}
-        [:h2 {:style   (css ["margin-top: 0"
-                             "margin-bottom: 0"])
+        [:h2 {:style   (page-helpers/css ["margin-top: 0"
+                                          "margin-bottom: 0"])
               "@click" "open = !open"} "Requires"
          [:span {:x-show "open"} (hiccup/raw " &#x25BC;")]
          [:span {:x-show "!open"} (hiccup/raw " &#x25B2;")]]
@@ -290,17 +222,17 @@
               :x-show "open"}
          (for [[required-module platform-specific-info] (sort-by first (:requires to-render))]
            [:li
-            [:a {:style (css ["color: black"])
+            [:a {:style (page-helpers/css ["color: black"])
                  :href  (str "/module/" required-module)}
              required-module]])]])
 
      (when (seq (:exports to-render))
-       [:div {:style  (css (concat solid-box
-                                   ["width: 100%"
-                                    "margin-bottom: 12px"]))
+       [:div {:style  (page-helpers/css (concat page-helpers/solid-box
+                                                ["width: 100%"
+                                                 "margin-bottom: 12px"]))
               :x-data "{ open: false }"}
-        [:h2 {:style   (css ["margin-top: 0"
-                             "margin-bottom: 0"])
+        [:h2 {:style   (page-helpers/css ["margin-top: 0"
+                                          "margin-bottom: 0"])
               "@click" "open = !open"} "Exports"
          [:span {:x-show "open"} (hiccup/raw " &#x25BC;")]
          [:span {:x-show "!open"} (hiccup/raw " &#x25B2;")]]
@@ -312,12 +244,12 @@
             exported-package])]])
 
      (when (seq (:provides to-render))
-       [:div {:style  (css (concat solid-box
-                                   ["width: 100%"
-                                    "margin-bottom: 12px"]))
+       [:div {:style  (page-helpers/css (concat page-helpers/solid-box
+                                                ["width: 100%"
+                                                 "margin-bottom: 12px"]))
               :x-data "{ open: false }"}
-        [:h2 {:style   (css ["margin-top: 0"
-                             "margin-bottom: 0"])
+        [:h2 {:style   (page-helpers/css ["margin-top: 0"
+                                          "margin-bottom: 0"])
               :role    "button"
               "@click" "open = !open"} "Provides"
          [:span {:x-show "open"} (hiccup/raw " &#x25BC;")]
@@ -329,17 +261,17 @@
                   (set (:module/target_platforms to-render)))
              [:li {:style "margin: 4px 0"}
               provided-service]
-             [:li {:style (css ["margin: 4px 0"
-                                "color: blue"])}
+             [:li {:style (page-helpers/css ["margin: 4px 0"
+                                             "color: blue"])}
               provided-service]))]])
 
      (when (seq (:uses to-render))
-       [:div {:style  (css (concat solid-box
-                                   ["width: 100%"
-                                    "margin-bottom: 12px"]))
+       [:div {:style  (page-helpers/css (concat page-helpers/solid-box
+                                                ["width: 100%"
+                                                 "margin-bottom: 12px"]))
               :x-data "{ open: false }"}
-        [:h2 {:style   (css ["margin-top: 0"
-                             "margin-bottom: 0"])
+        [:h2 {:style   (page-helpers/css ["margin-top: 0"
+                                          "margin-bottom: 0"])
               "@click" "open = !open"} "Uses"
          [:span {:x-show "open"} (hiccup/raw " &#x25BC;")]
          [:span {:x-show "!open"} (hiccup/raw " &#x25B2;")]]
@@ -366,9 +298,9 @@
           [:script {:src "/force-graph.js"}]
           :body
           (list
-            [:div {:style (css ["padding: 20px"
-                                "display: flex"
-                                "justify-content: center"])}
+            [:div {:style (page-helpers/css ["padding: 20px"
+                                             "display: flex"
+                                             "justify-content: center"])}
              (module-table db to-render)]))))))
 
 (defn module-set-details-handler
@@ -376,35 +308,29 @@
   (let [name (get (:path-params request) :name)
         provider-id (get (:query-params request) "provider-id")]
     (when-let [ms (seq (jdbc/execute! db (h/format {:select [:module_set_element/*]
-                                                    :from :module_set
+                                                    :from :repository.module_set
                                                     :where [:= :module_set/name name]
                                                     :right-join [:module_set_element [:= :module_set/id :module_set_element/id]]})))]
       (page-response
 
         :body
         (list
-          [:div {:style (css ["padding: 20px"
-                              "display: flex"
-                              "justify-content: center"])}
+          [:div {:style (page-helpers/css ["padding: 20px"
+                                           "display: flex"
+                                           "justify-content: center"])}
            (do (pprint/pprint ms)
                "abc")])))))
 
 
-(defn handler
-  [system request]
-  ((reitit-ring/ring-handler
-     (reitit-ring/router
-       ["" #_{:middleware [reitit-exception/exception-middleware]}
-        [["/" {:get {:handler (partial #'index-handler system)}}]
-         ["/search" {:get  (partial #'get-search-handler system)
-                     :post {:handler    (partial #'post-search-handler system)
-                            :middleware [reitit-parameters/parameters-middleware]}}]
-         ["/module/:name" {:get        (partial #'module-details-handler system)
-                           :middleware [reitit-parameters/parameters-middleware]}]
-         ["/module-set/:name" {:get (partial #'module-set-details-handler system)
-                               :middleware [reitit-parameters/parameters-middleware]}]
-         ["/api/publish" {:post {:handler (partial #'publish-handler system)}}]
-         ["/htmx.js" {:get {:handler (partial #'htmx-handler system)}}]
-         ["/alpine.js" {:get {:handler (partial #'alpine-handler system)}}]
-         ["/force-graph.js" {:get {:handler (partial #'force-graph-handler system)}}]]]))
-   request))
+(defn routes
+  [system]
+  ["" #_{:middleware [reitit-exception/exception-middleware]}
+   [["/" {:get {:handler (partial #'index-handler system)}}]
+    ["/search" {:get  (partial #'get-search-handler system)
+                :post {:handler    (partial #'post-search-handler system)
+                       :middleware [reitit-parameters/parameters-middleware]}}]
+    ["/module/:name" {:get        (partial #'module-details-handler system)
+                      :middleware [reitit-parameters/parameters-middleware]}]
+    ["/module-set/:name" {:get (partial #'module-set-details-handler system)
+                          :middleware [reitit-parameters/parameters-middleware]}]
+    ["/api/publish" {:post {:handler (partial #'publish-handler system)}}]]])

@@ -1,20 +1,18 @@
 (ns dev.mccue.repository.repository
   (:require [clojure.java.io :as io]
+            [clojure.pprint :as pprint]
             [clojure.set :as set]
             [clojure.string :as string]
             [clojure.tools.logging :as log]
+            [dev.mccue.repository.jmod :refer [fetch-artifact]]
             [honey.sql :as sql]
-            [next.jdbc :as jdbc]
-            [clojure.pprint :as pprint]
-            [dev.mccue.repository.jmod :refer [fetch-artifact determine-archive-type]])
-  (:import (java.io InputStream OutputStream)
+            [next.jdbc :as jdbc])
+  (:import (java.io InputStream)
            (java.nio.file Files Path)
            (java.nio.file.attribute FileAttribute)
            (java.security MessageDigest)
            (java.util HexFormat)
-           (net.ttddyy.dsproxy.support ProxyDataSource ProxyDataSourceBuilder)
            (org.sqlite SQLiteDataSource)))
-
 
 
 (defn persist-artifact
