@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y curl \
 # Install Clojure CLI
 RUN curl -L -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh
 RUN chmod +x linux-install.sh
-RUN sudo ./linux-install.sh
+RUN ./linux-install.sh
 RUN rm linux-install.sh
 
 # Copy Project Files Over
