@@ -1,4 +1,4 @@
-(ns dev.mccue.jmod.module-info
+(ns dev.mccue.repository.module-info
   (:import (java.io InputStream)
            (java.lang.classfile ClassBuilder ClassFile ClassModel)
            (java.lang.classfile.attribute ModuleAttribute
@@ -330,7 +330,7 @@
                                   (re-matches #"META-INF/versions/([0-9]+)/module-info.class"
                                               name)))
                   (.putNextEntry jar-out e)
-                  (when-not (and (JarEntry/.isDirectory e))
+                  (when-not (JarEntry/.isDirectory e)
                     (with-open [content (JarFile/.getInputStream jar e)]
                       (InputStream/.transferTo content jar-out)))
                   (JarOutputStream/.closeEntry jar-out)))

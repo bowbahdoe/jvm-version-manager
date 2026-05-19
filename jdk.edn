@@ -1,4 +1,0 @@
-{java.base {:version "25.0.2"
-            :target-platform "windows-amd64"}
- java.desktop {:version "25.0.2"
-               :target-platform "windows-amd64"}}

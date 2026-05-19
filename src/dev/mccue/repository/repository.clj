@@ -1,9 +1,12 @@
-(ns dev.mccue.repository
+(ns dev.mccue.repository.repository
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as string]
+            [clojure.tools.logging :as log]
+            [honey.sql :as sql]
             [next.jdbc :as jdbc]
             [clojure.pprint :as pprint]
-            [dev.mccue.jmod :refer [fetch-artifact determine-archive-type]])
+            [dev.mccue.repository.jmod :refer [fetch-artifact determine-archive-type]])
   (:import (java.io InputStream OutputStream)
            (java.nio.file Files Path)
            (java.nio.file.attribute FileAttribute)
@@ -12,18 +15,7 @@
            (net.ttddyy.dsproxy.support ProxyDataSource ProxyDataSourceBuilder)
            (org.sqlite SQLiteDataSource)))
 
-(defn from-file
-  [path]
-  (let [db (doto (SQLiteDataSource.)
-             (SQLiteDataSource/.setUrl (str "jdbc:sqlite:" path)))]
-    (doseq [command (-> (slurp "init.sql")
-                        (string/split #"--;"))]
 
-      (println (jdbc/execute! db [command])))
-
-    (-> (ProxyDataSourceBuilder/create db)
-        (ProxyDataSourceBuilder/.logQueryToSysOut)
-        (ProxyDataSourceBuilder/.build))))
 
 (defn persist-artifact
   [db artifact]
@@ -31,7 +23,7 @@
         hash (HexFormat/.formatHex (HexFormat/of)
                                    (MessageDigest/.digest digest (:bytes artifact)))]
     (jdbc/execute! db [(String/.stripIndent
-                         "INSERT INTO artifact(sha256, data)
+                         "INSERT INTO repository.artifact(sha256, data)
                           VALUES (?, ?)
                           ON CONFLICT DO NOTHING")
                        hash
@@ -44,7 +36,7 @@
     (jdbc/with-transaction
       [t db]
       (let [rs (jdbc/execute-one! t [(String/.stripIndent
-                                       "INSERT INTO module(
+                                       "INSERT INTO repository.module(
                                          name,
                                          version,
                                          target_platform,
@@ -86,10 +78,10 @@
           (doseq [provides (:provides (:module-info artifact))]
             (doseq [with (:with provides)]
               (jdbc/execute! t [(String/.stripIndent
-                                  "INSERT INTO module_provides(
+                                  "INSERT INTO repository.module_provides(
                                    module_id,
                                    service,
-                                   with
+                                   \"with\"
                                 )
                                 VALUES (?, ?, ?)
                                 ON CONFLICT DO NOTHING")
@@ -99,7 +91,7 @@
 
           (doseq [uses (:uses (:module-info artifact))]
             (jdbc/execute! t [(String/.stripIndent
-                                "INSERT INTO module_uses(
+                                "INSERT INTO repository.module_uses(
                                      module_id,
                                      service
                                   )
@@ -109,7 +101,7 @@
                               (:service uses)]))
           (doseq [requires (:requires (:module-info artifact))]
             (jdbc/execute! t [(String/.stripIndent
-                                "INSERT INTO module_requires(
+                                "INSERT INTO repository.module_requires(
                                    module_id,
                                    module,
                                    version,
@@ -136,7 +128,7 @@
                          (:to exports)
                          [nil])]
               (jdbc/execute! t [(String/.stripIndent
-                                  "INSERT INTO module_exports(
+                                  "INSERT INTO repository.module_exports(
                                      module_id,
                                      package,
                                      \"to\",
@@ -155,7 +147,7 @@
 
           (doseq [{:keys [package]} (:packages (:module-info artifact))]
             (jdbc/execute! t [(String/.stripIndent
-                                "INSERT INTO module_package(
+                                "INSERT INTO repository.module_package(
                                      module_id,
                                      package
                                   )
@@ -167,7 +159,7 @@
           (let [{:keys [algorithm hashes]} (:hashes (:module-info artifact))]
             (doseq [{:keys [module hash]} hashes]
               (jdbc/execute! t [(String/.stripIndent
-                                  "INSERT INTO module_hash(
+                                  "INSERT INTO repository.module_hash(
                                        module_id,
                                        module,
                                        algorithm,
@@ -187,7 +179,7 @@
   (:artifact/data
     (jdbc/execute-one! db [(String/.stripIndent
                              "SELECT sha256, data
-                              FROM artifact
+                              FROM repository.artifact
                               WHERE sha256 = ?")
                            sha256])))
 
@@ -201,51 +193,71 @@
         (let [procured (fetch-artifact artifact)]
           (persist-artifact db procured)
           procured))))
-(comment
-  (require '[dev.mccue.jmod])
-  (require '[dev.mccue.descriptors])
-  (from-file "modules.db")
-  (persist-artifact (from-file "modules.db")
-                    (first
-                      (dev.mccue.jmod/procure (dev.mccue.descriptors/dev-mccue-jdbc))))
-  (retrieve-artifact (from-file "modules.db")
-                     "0da876dba16e9ade6c3ec5448e1b589b7332d007cc89b75309cd10674112380d"))
+
+(defn- sqlite-db
+  [path]
+  (let [db (doto (SQLiteDataSource.)
+             (SQLiteDataSource/.setUrl (str "jdbc:sqlite:" path)))]
+    (doseq [command (-> (slurp (io/resource "sqlite-init.sql"))
+                        (string/split #"--;"))]
+      (jdbc/execute! db [command]))
+    db))
+
+(defn get-matching-columns
+  [postgres-db sqlite-db table]
+  (let [postgres-columns (mapv :columns/column_name
+                               (jdbc/execute! postgres-db
+                                              (sql/format
+                                                {:select [:column_name]
+                                                 :from :information_schema.columns
+                                                 :where [:and
+                                                         [:= :table_schema "repository"]
+                                                         [:= :table_name (name table)]]})))
+        sqlite-columns   (mapv :name
+                               (jdbc/execute! sqlite-db
+                                              [(str "pragma table_info(" (name table) ")")]))]
+
+    (mapv keyword
+          (sort
+            (set/intersection (set (map string/lower-case postgres-columns))
+                              (set (map string/lower-case sqlite-columns)))))))
 
 
 (defn build-index
   [db]
   (let [temp-file (Files/createTempFile "new" ".db" (into-array FileAttribute []))]
-    (try
-      (let [index  (str temp-file)
-            new-db (from-file index)
-            old-db-path (-> (SQLiteDataSource/.getUrl db)
-                            (string/replace-first "jdbc:sqlite:" ""))]
-        (jdbc/with-transaction [t new-db]
-          (jdbc/execute! t [(str "ATTACH DATABASE '" old-db-path "' as 'Y';")])
-          (let [tables (->> (jdbc/execute! t ["SELECT name FROM sqlite_master WHERE type='table';"])
-                            (map :sqlite_master/name)
-                            (filter #(not= % "artifact")))]
-            (doseq [table tables]
-              (jdbc/execute! t [(str "INSERT INTO " table " SELECT * FROM Y." table ";")]))))
-        (with-open [is (io/input-stream (Path/.toFile temp-file))]
-          (InputStream/.readAllBytes is)))
-      (finally (Files/deleteIfExists temp-file)))))
+    (jdbc/with-transaction [t db]
+      (try
+        (let [index  (str temp-file)
+              new-db (sqlite-db index)
 
-(defn build-distro
-  []
-  (let [db (from-file "modules.db")
-        platform "windows-amd64"]
-    (loop [modules {}]
-      (let [results (jdbc/execute! db [(String/.stripIndent
-                                         "SELECT name, version, target_platform
-                                          FROM module
-                                          WHERE name='java.base' AND (target_platform = 'universal' OR target_platform = ?)")
-                                       platform])]
-        (println "Pick your java.base:")
-        (doseq [{:module/keys [name version target_platform]} results]
-          (println (str "1: " name "@" version ", " target_platform)))))))
+              transfer! (fn [table]
+                          (log/info (str "Transferring " table))
+                          (let [columns (get-matching-columns t new-db table)
+                                source (jdbc/execute! t
+                                                      (sql/format
+                                                        {:select (mapv #(keyword (name table) (name %))
+                                                                       columns)
+                                                         :from (keyword (str "repository." (name table)))}
+                                                        {:quoted true}))]
 
-(comment
-  (^[byte/1] OutputStream/.write
-    (io/output-stream "browser/index.db")
-    (build-index (from-file "modules.db"))))
+                            (when (seq source)
+                              (jdbc/execute! new-db (sql/format
+                                                      {:insert-into table
+                                                       :columns columns
+                                                       :values (mapv (apply juxt (mapv #(keyword (name table) (name %))
+                                                                                       columns))
+                                                                     source)}
+                                                      {:quoted true})))))]
+
+          (transfer! :module)
+          (transfer! :module_provides)
+          (transfer! :module_uses)
+          (transfer! :module_requires)
+          (transfer! :module_exports)
+          (transfer! :module_package)
+          (transfer! :module_hash)
+
+          (with-open [is (io/input-stream (Path/.toFile temp-file))]
+            (InputStream/.readAllBytes is)))
+        (finally (Files/deleteIfExists temp-file))))))

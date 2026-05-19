@@ -4,6 +4,7 @@
     <option name="enabledAliases">
       <set>
         <option value="build" />
+        <option value="test" />
       </set>
     </option>
   </component>

@@ -1,12 +1,9 @@
-(ns dev.mccue.server
+(ns dev.mccue.repository.server
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [ring.adapter.jetty :as jetty]
-            [dev.mccue.repository :as repository]
             [next.jdbc :as jdbc]
             [hiccup2.core :as hiccup]
             [clojure.pprint :as pprint]
-            [cheshire.core :as cheshire]
             [reitit.ring :as reitit-ring]
             [reitit.ring.middleware.exception :as reitit-exception]
             [reitit.ring.middleware.parameters :as reitit-parameters]
@@ -162,7 +159,7 @@
   [{:system/keys [db]} request]
   (let [query (h/format
                 {:select [:module/id :module/name]
-                 :from   :module
+                 :from   :repository.module
                  :where  [:or
                           (if-let [module-name (get (:params request) "module-name-input")]
                             [:like :module/name (str "%" module-name "%")]
@@ -205,7 +202,7 @@
 (defn get-latest-module-version
   [db & {:keys [name provider-id]}]
   (let [modules (jdbc/execute! db (h/format {:select [:module/version]
-                                             :from   :module
+                                             :from   :repository.module
                                              :where  [:and
                                                       [:= :module/name name]
                                                       [:= :module/provider_id provider-id]]}))
@@ -226,31 +223,31 @@
                                                              :module/target_platform
                                                              :module/mandated
                                                              :module/synthetic]
-                                                    :from   :module
+                                                    :from   :repository.module
                                                     :where  [:and
                                                              [:= :module/name name]
-                                                             [:= :module/version version]
+                                                             [:= :module/version (str version)]
                                                              [:= :module/provider_id provider-id]]})))]
     (let [module-name (:module/name (first modules))
           requires (->> (jdbc/execute! db (h/format {:select    [:module_requires/* :module/target_platform]
-                                                     :from      :module_requires
+                                                     :from      :repository.module_requires
                                                      :where     [:in :module_requires/module_id (mapv :module/id modules)]
-                                                     :left-join [:module [:= :module/id :module_requires/module_id]]}))
+                                                     :left-join [:repository.module [:= :module/id :module_requires/module_id]]}))
                         (group-by :module_requires/module))
           exports (->> (jdbc/execute! db (h/format {:select    [:module_exports/* :module/target_platform]
-                                                    :from      :module_exports
+                                                    :from      :repository.module_exports
                                                     :where     [:in :module_exports/module_id (mapv :module/id modules)]
-                                                    :left-join [:module [:= :module/id :module_exports/module_id]]}))
+                                                    :left-join [:repository.module [:= :module/id :module_exports/module_id]]}))
                        (group-by :module_exports/package))
           provides (->> (jdbc/execute! db (h/format {:select    [:module_provides/* :module/target_platform]
-                                                     :from      :module_provides
+                                                     :from      :repository.module_provides
                                                      :where     [:in :module_provides/module_id (mapv :module/id modules)]
-                                                     :left-join [:module [:= :module/id :module_provides/module_id]]}))
+                                                     :left-join [:repository.module [:= :module/id :module_provides/module_id]]}))
                         (group-by :module_provides/service))
           uses (->> (jdbc/execute! db (h/format {:select    [:module_uses/* :module/target_platform]
-                                                 :from      :module_uses
+                                                 :from      :repository.module_uses
                                                  :where     [:in :module_uses/module_id (mapv :module/id modules)]
-                                                 :left-join [:module [:= :module/id :module_uses/module_id]]}))
+                                                 :left-join [:repository.module [:= :module/id :module_uses/module_id]]}))
                     (group-by :module_uses/service))]
       {:module/name             module-name
        :module/version          version
@@ -411,18 +408,3 @@
          ["/alpine.js" {:get {:handler (partial #'alpine-handler system)}}]
          ["/force-graph.js" {:get {:handler (partial #'force-graph-handler system)}}]]]))
    request))
-
-
-
-
-(defn start!
-  []
-  (let [db (repository/from-file "modules.db")]
-    (jetty/run-jetty
-      (partial #'handler {:system/db                     db})
-      {:port  8999
-       :join? false})))
-
-
-(comment
-  (def server (start!)))

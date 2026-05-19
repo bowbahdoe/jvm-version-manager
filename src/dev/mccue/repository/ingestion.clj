@@ -1,14 +1,15 @@
-(ns dev.mccue.ingestion
-  (:require [honey.sql :as h]
+(ns dev.mccue.repository.ingestion
+  (:require [clojure.tools.logging :as log]
+            [honey.sql :as h]
             [next.jdbc :as jdbc]
-            [dev.mccue.jmod :as jmod]
-            [dev.mccue.repository :as repository]
+            [dev.mccue.repository.jmod :as jmod]
+            [dev.mccue.repository.repository :as repository]
             [next.jdbc.transaction])
   (:import (java.time OffsetDateTime)))
 
 (defn fetch-jdk
   [{:system/keys [db]}]
-  (println "Fetching next JDK")
+  (log/info "Fetching JDK")
   (try
     (binding [next.jdbc.transaction/*nested-tx* :ignore]
       (if-let [job (jdbc/execute-one! db (h/format {:select [:jdk_ingestion_job/id
@@ -25,13 +26,13 @@
                                                              :jdk_ingestion_job/linux_amd64_sha256_url
                                                              :jdk_ingestion_job/linux_amd64_sha256
                                                              :jdk_ingestion_job/provider_id]
-                                                    :from :jdk_ingestion_job
+                                                    :from :repository.jdk_ingestion_job
                                                     :where [:= :jdk_ingestion_job/finished_at nil]
                                                     :limit 1}))]
         (try
-          (jdbc/execute! db (h/format {:update :jdk_ingestion_job
+          (jdbc/execute! db (h/format {:update :repository.jdk_ingestion_job
                                        :set {:jdk_ingestion_job/started_at [(str (OffsetDateTime/now))]}
-                                       :where  [:= :jdk_ingestion_job/id (:jdk_ingestion_job/id job)]}))
+                                       :where  [:= :jdk_ingestion_job/id (:repository.jdk_ingestion_job/id job)]}))
 
           (let [{:jdk_ingestion_job/keys [windows_amd64_url
                                           windows_amd64_sha256_url
@@ -76,14 +77,14 @@
               (jmod/create-jdk-module-sets db)))
 
           (catch Exception e
-            (jdbc/execute! db (h/format {:update :jdk_ingestion_job
+            (jdbc/execute! db (h/format {:update :repository.jdk_ingestion_job
                                          :set {:jdk_ingestion_job/error (.getMessage e)}
-                                         :where [:= :jdk_ingestion_job/id (:jdk_ingestion_job/id job)]}))
+                                         :where [:= :jdk_ingestion_job/id (:repository.jdk_ingestion_job/id job)]}))
             (throw e))
           (finally
-            (jdbc/execute! db (h/format {:update :jdk_ingestion_job
+            (jdbc/execute! db (h/format {:update :repository.jdk_ingestion_job
                                          :set {:jdk_ingestion_job/finished_at [(str (OffsetDateTime/now))]}
-                                         :where  [:= :jdk_ingestion_job/id (:jdk_ingestion_job/id job)]}))))
+                                         :where  [:= :jdk_ingestion_job/id (:repository.jdk_ingestion_job/id job)]}))))
         (println "No Jobs Found")))
     (catch Exception e
       (.printStackTrace e))))

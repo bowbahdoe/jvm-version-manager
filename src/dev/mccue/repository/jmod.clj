@@ -1,6 +1,6 @@
-(ns dev.mccue.jmod
+(ns dev.mccue.repository.jmod
   (:require [clojure.string :as str]
-            [dev.mccue.jmod.module-info :as mi]
+            [dev.mccue.repository.module-info :as mi]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.tools.deps.tree :as deps-tree]
@@ -463,7 +463,7 @@
   [db]
   (jdbc/with-transaction [t db]
     (let [java-bases (jdbc/execute! t ["SELECT group_concat(id) as ids, version, provider_id
-                                        FROM module
+                                        FROM repository.module
                                         WHERE name='java.base'
                                           AND id NOT IN (
                                             SELECT module_id
@@ -481,14 +481,14 @@
         (let [modules (jdbc/execute!
                         t
                         (vec (concat [(str "SELECT id, name, target_platform
-                                            FROM module
+                                            FROM repository.module
                                             WHERE name IN (
                                               SELECT module FROM module_hash
                                               WHERE module_id IN ("
                                            (string/join "," (repeat (count (:ids java-base)) "?"))
                                            "))")]
                                      (:ids java-base))))]
-          (when-let [module-set (jdbc/execute-one! t ["INSERT INTO module_set(name, version, description)
+          (when-let [module-set (jdbc/execute-one! t ["INSERT INTO repository.module_set(name, version, description)
                                                        VALUES (?, ?, ?)
                                                        ON CONFLICT DO NOTHING
                                                        RETURNING id"
@@ -496,12 +496,12 @@
                                                       (:version java-base)
                                                       (str "JDK " (:version java-base))])]
             (doseq [java-base-id (:ids java-base)]
-              (jdbc/execute! t ["INSERT INTO module_set_element(module_id, module_set_id)
+              (jdbc/execute! t ["INSERT INTO repository.module_set_element(module_id, module_set_id)
                                  VALUES (?, ?)"
                                 java-base-id
                                 (:module_set/id module-set)]))
             (doseq [module modules]
-              (jdbc/execute! t ["INSERT INTO module_set_element(module_id, module_set_id)
+              (jdbc/execute! t ["INSERT INTO repository.module_set_element(module_id, module_set_id)
                                  VALUES (?, ?)"
                                 (:module/id module)
                                 (:module_set/id module-set)]))))))))
@@ -510,29 +510,9 @@
 
 
 (comment
-
-  (let [db (rep/from-file "modules.db")]
-    (create-jdk-module-sets db))
-  (defn dump-windows-amd64
-    [spec]
-    (let [artifacts (procure {:fetch (partial rep/fetch-cached (rep/from-file "modules.db"))} spec)]
-      (doseq [module (->> artifacts
-                          (filter #(or (= (:target-platform %) "windows-amd64")
-                                       (nil? (:target-platform %)))))]
-
-
-        (write-module "jmods/" module))))
-
-  (dump-windows-amd64 (dev.mccue.descriptors/oracle-jdk))
-  (require '[dev.mccue.repository :as rep])
-
-  (let [db (rep/from-file "modules.db")]
-    (procure {:fetch (partial #'rep/fetch-cached db)}
-             (dev.mccue.descriptors/oracle-jdk)))
-
   (do (require '[dev.mccue.descriptors])
       (require '[dev.mccue.repository :as rep])
-    (let [db (rep/from-file "modules.db")]
+    (let [db (user/db)]
       (doseq [artifact (procure {:fetch (partial #'rep/fetch-cached db)}
                                 (dev.mccue.descriptors/oracle-jdk))]
         (rep/persist-module db artifact))))
@@ -548,12 +528,12 @@
           (println "-----")
           (println (:name descriptor))
           (try (doseq [artifact (procure {:fetch (partial rep/fetch-cached (rep/from-file "modules.db"))} descriptor)]
-                 (rep/persist-module (rep/from-file "modules.db") artifact)
-                 (catch Exception e (Exception/.printStackTrace e)))))))
+                 (rep/persist-module (rep/from-file "modules.db") artifact))
+               (catch Exception e (Exception/.printStackTrace e))))))
   (do (require '[dev.mccue.descriptors])
       (require '[dev.mccue.repository :as rep])
       (let [descriptors (dev.mccue.descriptors/get-all-from-index)
-            db          (rep/from-file "modules.db")]
+            db          (user/db)]
         (doseq [descriptor (sort-by :name descriptors)]
           (println "-----")
           (println (:name descriptor))

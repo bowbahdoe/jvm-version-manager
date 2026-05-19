@@ -1,8 +1,8 @@
-(ns dev.mccue.descriptors
+(ns dev.mccue.repository.descriptors
   (:require
     [clojure.string :as string]
-    [dev.mccue.jmod.module-info :as mi]
-    [dev.mccue.jmod :refer [maven-central-artifact]])
+    [dev.mccue.repository.module-info :as mi]
+    [dev.mccue.repository.jmod :refer [maven-central-artifact]])
   (:import (java.io StringReader)
            (java.nio.charset StandardCharsets)
            (java.util Map$Entry Properties)))
@@ -319,10 +319,6 @@
         (cb {:name (Map$Entry/.getKey entry)
              :url (Map$Entry/.getValue entry)})))))
 
-(comment
-  (for-each-in-index
-    (fn [{:keys [url]}]
-      (extract-mvn-info url))))
 (defn get-all-from-index
   []
   (for-each-in-index
