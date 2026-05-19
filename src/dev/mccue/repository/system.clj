@@ -26,9 +26,10 @@
   [{:system/keys []}]
   (let [db (connection/->pool HikariDataSource
                               {:dbtype "postgres"
-                               :dbname "postgres"
-                               :username "postgres"
-                               :password "postgres"})]
+                               :host (System/getenv "POSTGRES_HOST")
+                               :dbname (or (System/getenv "POSTGRES_DB") "postgres")
+                               :username (or (System/getenv "POSTGRES_USER") "postgres")
+                               :password (or (System/getenv "POSTGRES_PASSWORD") "postgres")})]
     (-> (ProxyDataSourceBuilder/create db)
         (ProxyDataSourceBuilder/.logQueryBySlf4j SLF4JLogLevel/INFO)
         (ProxyDataSourceBuilder/.build))))
