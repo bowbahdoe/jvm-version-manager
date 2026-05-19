@@ -16,7 +16,8 @@
   [{:system/keys [db]}]
   (jetty/run-jetty
     (partial #'server/handler {:system/db db})
-    {:port  8999
+    {:port  (or (parse-long (System/getenv "PORT"))
+                8999)
      :join? false}))
 
 (defn stop-server!
