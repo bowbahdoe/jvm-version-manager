@@ -1,7 +1,7 @@
 FROM eclipse-temurin:26-jdk
 
 # Install Clojure CLI
-RUN curl -L -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh
+RUN wget -O linux-install.sh https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh
 RUN chmod +x linux-install.sh
 RUN sudo ./linux-install.sh
 
