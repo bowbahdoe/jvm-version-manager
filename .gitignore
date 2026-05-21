@@ -10,4 +10,5 @@ target
 data
 migrations/environments/production.properties
 .env
-.env
+.idea/dataSources
+
