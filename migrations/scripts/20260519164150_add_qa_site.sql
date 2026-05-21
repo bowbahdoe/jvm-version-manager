@@ -6,6 +6,7 @@ CREATE TABLE identity."user"
 (
     id                       uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
     profile_image_png_base64 text,
+    github_user_id           text unique,
     created_at               timestamptz not null default now(),
     updated_at               timestamptz not null default now()
 );
