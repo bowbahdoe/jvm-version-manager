@@ -1,8 +1,10 @@
 -- // First migration.
-CREATE SCHEMA repository;
+CREATE SCHEMA system;
 
-CREATE FUNCTION repository.set_current_timestamp_updated_at()
-    RETURNS TRIGGER AS $$
+
+CREATE FUNCTION system.set_current_timestamp_updated_at()
+    RETURNS TRIGGER AS
+$$
 DECLARE
     _new record;
 BEGIN
@@ -12,25 +14,32 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TABLE repository.artifact(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    sha256 text,
-    data bytea not null,
+
+CREATE SCHEMA repository;
+
+
+CREATE TABLE repository.artifact
+(
+    id         uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    sha256     text,
+    data       bytea       not null,
     unique (sha256),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
 
 CREATE TRIGGER set_repository_artifact_updated_at
-    BEFORE UPDATE ON repository.artifact
+    BEFORE UPDATE
+    ON repository.artifact
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 
 --;
-CREATE TABLE IF NOT EXISTS repository.provider(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    name text not null unique,
-    synthetic boolean not null,
+CREATE TABLE IF NOT EXISTS repository.provider
+(
+    id         uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    name       text        not null unique,
+    synthetic  boolean     not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
@@ -39,174 +48,192 @@ COMMENT ON COLUMN repository.provider.synthetic
     IS 'Whether the provider was "made up" in the system and there is no actual user who represents the provider';
 
 CREATE TRIGGER set_repository_provider_updated_at
-    BEFORE UPDATE ON repository.provider
+    BEFORE UPDATE
+    ON repository.provider
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 --;
-CREATE TABLE IF NOT EXISTS repository.provider_maven(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    provider_id uuid not null,
-    mvn_groupId text not null,
-    mvn_repository text not null,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
+CREATE TABLE IF NOT EXISTS repository.provider_maven
+(
+    id             uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    provider_id    uuid        not null,
+    mvn_groupId    text        not null,
+    mvn_repository text        not null,
+    created_at     timestamptz not null default now(),
+    updated_at     timestamptz not null default now(),
     unique (mvn_groupId, mvn_repository),
-    FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+    FOREIGN KEY (provider_id) REFERENCES repository.provider (id)
         on update restrict
         on delete restrict
 );
 CREATE TRIGGER set_repository_provider_maven_updated_at
-    BEFORE UPDATE ON repository.provider_maven
+    BEFORE UPDATE
+    ON repository.provider_maven
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 --;
-CREATE TABLE IF NOT EXISTS repository.module(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    name text not null,
-    version text not null,
-    target_platform text not null,
-    provider_id uuid,
-    mandated boolean not null,
-    synthetic boolean not null,
-    module_info text not null,
-    mvn_repository text,
-    mvn_groupId text,
-    mvn_artifactId text,
-    mvn_version text,
-    mvn_classifier text,
-    type text,
-    sha256 text not null unique,
-    created_at TEXT NOT NULL DEFAULT current_timestamp,
+CREATE TABLE IF NOT EXISTS repository.module
+(
+    id              uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    name            text        not null,
+    version         text        not null,
+    target_platform text        not null,
+    provider_id     uuid,
+    mandated        boolean     not null,
+    synthetic       boolean     not null,
+    module_info     text        not null,
+    mvn_repository  text,
+    mvn_groupId     text,
+    mvn_artifactId  text,
+    mvn_version     text,
+    mvn_classifier  text,
+    type            text,
+    sha256          text        not null unique,
+    created_at      timestamptz not null default now(),
+    updated_at      timestamptz not null default now(),
     unique (name, version, target_platform, provider_id),
-    FOREIGN KEY(sha256) REFERENCES repository.artifact(sha256)
+    FOREIGN KEY (sha256) REFERENCES repository.artifact (sha256)
         on update restrict
         on delete restrict
 );
+CREATE TRIGGER set_repository_module_updated_at
+    BEFORE UPDATE
+    ON repository.module
+    FOR EACH ROW
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 --;
-CREATE TABLE IF NOT EXISTS repository.module_provides(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS repository.module_provides
+(
+    id        uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
     module_id uuid not null,
-    service text not null,
-    "with" text not null,
+    service   text not null,
+    "with"    text not null,
     unique (module_id, service, "with"),
-    FOREIGN KEY(module_id) REFERENCES repository.module(id)
+    FOREIGN KEY (module_id) REFERENCES repository.module (id)
         on update restrict
         on delete restrict
 );
 --;
-CREATE TABLE IF NOT EXISTS repository.module_uses(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS repository.module_uses
+(
+    id        uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
     module_id uuid not null,
-    service text not null,
+    service   text not null,
     unique (module_id, service),
-    FOREIGN KEY(module_id) REFERENCES repository.module(id)
+    FOREIGN KEY (module_id) REFERENCES repository.module (id)
         on update restrict
         on delete restrict
 );
 --;
-CREATE TABLE IF NOT EXISTS repository.module_requires(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    module_id uuid not null,
-    module text not null,
-    version text,
-    static boolean not null,
+CREATE TABLE IF NOT EXISTS repository.module_requires
+(
+    id         uuid    NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    module_id  uuid    not null,
+    module     text    not null,
+    version    text,
+    static     boolean not null,
     transitive boolean not null,
-    mandated boolean not null,
-    synthetic boolean not null,
+    mandated   boolean not null,
+    synthetic  boolean not null,
     unique (module_id, module),
-    FOREIGN KEY(module_id) REFERENCES repository.module(id)
+    FOREIGN KEY (module_id) REFERENCES repository.module (id)
         on update restrict
         on delete restrict
 );
 --;
-CREATE TABLE IF NOT EXISTS repository.module_exports(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    module_id uuid not null,
-    package text not null,
-    "to" text,
-    mandated boolean not null,
+CREATE TABLE IF NOT EXISTS repository.module_exports
+(
+    id        uuid    NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    module_id uuid    not null,
+    package   text    not null,
+    "to"      text,
+    mandated  boolean not null,
     synthetic boolean not null,
     unique (module_id, package, "to"),
-    FOREIGN KEY(module_id) REFERENCES repository.module(id)
+    FOREIGN KEY (module_id) REFERENCES repository.module (id)
         on update restrict
         on delete restrict
 );
 --;
-CREATE TABLE IF NOT EXISTS repository.module_package(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS repository.module_package
+(
+    id        uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
     module_id uuid not null,
-    package text not null,
+    package   text not null,
     unique (module_id, package),
-    FOREIGN KEY(module_id) REFERENCES repository.module(id)
+    FOREIGN KEY (module_id) REFERENCES repository.module (id)
         on update restrict
         on delete restrict
 );
 --;
-CREATE TABLE IF NOT EXISTS repository.module_hash(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS repository.module_hash
+(
+    id        uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
     module_id uuid not null,
     module    text not null,
     algorithm text not null,
     hash      text not null,
     unique (module_id, module, algorithm),
-    FOREIGN KEY(module_id) REFERENCES repository.module(id)
+    FOREIGN KEY (module_id) REFERENCES repository.module (id)
         on update restrict
         on delete restrict
 );
 --;
-CREATE TABLE IF NOT EXISTS repository.module_set(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    name text not null,
-    version text not null,
-    description text not null,
+CREATE TABLE IF NOT EXISTS repository.module_set
+(
+    id          uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    name        text        not null,
     provider_id uuid,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+    created_at  timestamptz not null default now(),
+    updated_at  timestamptz not null default now(),
+    FOREIGN KEY (provider_id) REFERENCES repository.provider (id)
         on update restrict
-        on delete restrict,
-    UNIQUE (name, version)
+        on delete restrict
 );
 
 CREATE TRIGGER set_repository_module_set_updated_at
-    BEFORE UPDATE ON repository.module_set
+    BEFORE UPDATE
+    ON repository.module_set
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 --;
-CREATE TABLE IF NOT EXISTS repository.module_set_element(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    module_set_id uuid not null,
-    module_id uuid not null,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
+CREATE TABLE IF NOT EXISTS repository.module_set_element
+(
+    id            uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    module_set_id uuid        not null,
+    module_id     uuid        not null,
+    created_at    timestamptz not null default now(),
+    updated_at    timestamptz not null default now(),
     unique (module_set_id, module_id),
-    FOREIGN KEY (module_set_id) REFERENCES repository.module_set(id)
+    FOREIGN KEY (module_set_id) REFERENCES repository.module_set (id)
         on update restrict
         on delete restrict,
-    FOREIGN KEY (module_id) REFERENCES repository.module(id)
+    FOREIGN KEY (module_id) REFERENCES repository.module (id)
         on update restrict
         on delete restrict
 );
 
 CREATE TRIGGER set_repository_module_set_element_updated_at
-    BEFORE UPDATE ON repository.module_set_element
+    BEFORE UPDATE
+    ON repository.module_set_element
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 
 --;
 -- A module set published for the consumption of
 -- other users.
-CREATE TABLE IF NOT EXISTS repository.published_module_set(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    module_set_id uuid not null,
-    provider_id uuid not null,
-    name text not null,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    FOREIGN KEY(module_set_id) REFERENCES repository.module_set(id)
+CREATE TABLE IF NOT EXISTS repository.published_module_set
+(
+    id            uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    module_set_id uuid        not null,
+    provider_id   uuid        not null,
+    name          text        not null,
+    created_at    timestamptz not null default now(),
+    updated_at    timestamptz not null default now(),
+    FOREIGN KEY (module_set_id) REFERENCES repository.module_set (id)
         on update restrict
         on delete restrict,
-    FOREIGN KEY(provider_id) REFERENCES repository.provider(id)
+    FOREIGN KEY (provider_id) REFERENCES repository.provider (id)
         on update restrict
         on delete restrict,
     UNIQUE (module_set_id, provider_id)
@@ -214,9 +241,10 @@ CREATE TABLE IF NOT EXISTS repository.published_module_set(
 
 
 CREATE TRIGGER set_repository_published_module_set_updated_at
-    BEFORE UPDATE ON repository.published_module_set
+    BEFORE UPDATE
+    ON repository.published_module_set
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 --;
 -- Grants permission to a publisher to publish modules
 -- with a name. I.E. if we grant oracle
@@ -226,124 +254,134 @@ EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
 --
 -- This can also be permission to publish an exact module.
 -- If so, the prefix column will be set to false.
-CREATE TABLE IF NOT EXISTS repository.provider_module_permission(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    provider_id uuid not null,
-    module text not null,
+CREATE TABLE IF NOT EXISTS repository.provider_module_permission
+(
+    id          uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    provider_id uuid        not null,
+    module      text        not null,
     -- If true, this permission is for publishing an *exact*
     -- module name, not for a specific prefix.
-    prefix boolean not null default true,
+    prefix      boolean     not null default true,
     -- Set to a time when/if permission to publish modules under a prefix
     -- is revoked
-    revoked_at timestamptz,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+    revoked_at  timestamptz,
+    created_at  timestamptz not null default now(),
+    updated_at  timestamptz not null default now(),
+    FOREIGN KEY (provider_id) REFERENCES repository.provider (id)
         on update restrict
         on delete restrict,
     UNIQUE (provider_id, prefix)
 );
 
 CREATE TRIGGER set_repository_provider_module_permission_updated_at
-    BEFORE UPDATE ON repository.provider_module_permission
+    BEFORE UPDATE
+    ON repository.provider_module_permission
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 --;
 -- Automatically ingest and track an artifact from maven.
 -- New versions should be discovered by a background process;
-CREATE TABLE IF NOT EXISTS repository.maven_tracked_artifact(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    mvn_repository text not null,
-    mvn_groupId text not null,
-    mvn_artifactId text not null,
+CREATE TABLE IF NOT EXISTS repository.maven_tracked_artifact
+(
+    id             uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    mvn_repository text        not null,
+    mvn_groupId    text        not null,
+    mvn_artifactId text        not null,
     -- Provider to assign ingested artifacts to
-    provider_id uuid,
+    provider_id    uuid,
     -- Only ingest artifacts after the given version
-    start_version text,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+    start_version  text,
+    created_at     timestamptz not null default now(),
+    updated_at     timestamptz not null default now(),
+    FOREIGN KEY (provider_id) REFERENCES repository.provider (id)
         on update restrict
         on delete restrict
 );
 
 CREATE TRIGGER set_repository_maven_tracked_artifact_updated_at
-    BEFORE UPDATE ON repository.maven_tracked_artifact
+    BEFORE UPDATE
+    ON repository.maven_tracked_artifact
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 --;
-CREATE TABLE IF NOT EXISTS repository.maven_ingestion_job(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS repository.maven_ingestion_job
+(
+    id                        uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
     maven_tracked_artifact_id uuid,
-    mvn_repository text not null,
-    mvn_groupId text not null,
-    mvn_artifactId text not null,
-    mvn_version text not null,
-    mvn_classifier text not null,
-    mvn_type text not null,
-    started_at text not null default current_timestamp,
-    finished_at text not null default current_timestamp,
-    error text,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    FOREIGN KEY (maven_tracked_artifact_id) REFERENCES repository.maven_tracked_artifact(id)
+    mvn_repository            text        not null,
+    mvn_groupId               text        not null,
+    mvn_artifactId            text        not null,
+    mvn_version               text        not null,
+    mvn_classifier            text        not null,
+    mvn_type                  text        not null,
+    started_at                text        not null default current_timestamp,
+    finished_at               text        not null default current_timestamp,
+    error                     text,
+    created_at                timestamptz not null default now(),
+    updated_at                timestamptz not null default now(),
+    FOREIGN KEY (maven_tracked_artifact_id) REFERENCES repository.maven_tracked_artifact (id)
         on update restrict
         on delete restrict
 );
 
 CREATE TRIGGER set_repository_maven_ingestion_job_updated_at
-    BEFORE UPDATE ON repository.maven_ingestion_job
+    BEFORE UPDATE
+    ON repository.maven_ingestion_job
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 --;
-CREATE TABLE IF NOT EXISTS repository.maven_ingestion_job_module(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    maven_ingestion_job_id uuid not null,
-    module_id uuid not null,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    FOREIGN KEY(maven_ingestion_job_id) REFERENCES repository.maven_ingestion_job(id)
+CREATE TABLE IF NOT EXISTS repository.maven_ingestion_job_module
+(
+    id                     uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    maven_ingestion_job_id uuid        not null,
+    module_id              uuid        not null,
+    created_at             timestamptz not null default now(),
+    updated_at             timestamptz not null default now(),
+    FOREIGN KEY (maven_ingestion_job_id) REFERENCES repository.maven_ingestion_job (id)
         on update restrict
         on delete restrict,
-    FOREIGN KEY(module_id) REFERENCES repository.module(id)
+    FOREIGN KEY (module_id) REFERENCES repository.module (id)
         on update restrict
         on delete restrict
 );
 
 CREATE TRIGGER set_repository_maven_ingestion_job_module_updated_at
-    BEFORE UPDATE ON repository.maven_ingestion_job_module
+    BEFORE UPDATE
+    ON repository.maven_ingestion_job_module
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 --;
-CREATE TABLE IF NOT EXISTS repository.jdk_ingestion_job(
-    id uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    windows_amd64_url text,
+CREATE TABLE IF NOT EXISTS repository.jdk_ingestion_job
+(
+    id                       uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    windows_amd64_url        text,
     windows_amd64_sha256_url text,
-    windows_amd64_sha256 text,
-    macos_aarch64_url text,
+    windows_amd64_sha256     text,
+    macos_aarch64_url        text,
     macos_aarch64_sha256_url text,
-    macos_aarch64_sha256 text,
-    linux_aarch64_url text,
+    macos_aarch64_sha256     text,
+    linux_aarch64_url        text,
     linux_aarch64_sha256_url text,
-    linux_aarch64_sha256 text,
-    linux_amd64_url text,
-    linux_amd64_sha256_url text,
-    linux_amd64_sha256 text,
-    provider_id uuid not null,
-    started_at text,
-    finished_at text,
-    error text,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    FOREIGN KEY (provider_id) REFERENCES repository.provider(id)
+    linux_aarch64_sha256     text,
+    linux_amd64_url          text,
+    linux_amd64_sha256_url   text,
+    linux_amd64_sha256       text,
+    provider_id              uuid        not null,
+    started_at               text,
+    finished_at              text,
+    error                    text,
+    created_at               timestamptz not null default now(),
+    updated_at               timestamptz not null default now(),
+    FOREIGN KEY (provider_id) REFERENCES repository.provider (id)
         on update restrict
         on delete restrict
 );
 
 CREATE TRIGGER set_repository_jdk_ingestion_job_updated_at
-    BEFORE UPDATE ON repository.maven_ingestion_job_module
+    BEFORE UPDATE
+    ON repository.maven_ingestion_job_module
     FOR EACH ROW
-EXECUTE PROCEDURE repository.set_current_timestamp_updated_at();
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 
 -- //@UNDO
 
@@ -383,7 +421,8 @@ DROP TABLE repository.provider;
 
 DROP TABLE repository.artifact;
 
-DROP FUNCTION repository.set_current_timestamp_updated_at;
-
 DROP SCHEMA repository;
 
+DROP FUNCTION system.set_current_timestamp_updated_at;
+
+DROP SCHEMA system;
