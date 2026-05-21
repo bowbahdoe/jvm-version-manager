@@ -465,7 +465,7 @@
                                         WHERE name='java.base'
                                           AND id NOT IN (
                                             SELECT module_id
-                                            FROM module_set_element
+                                            FROM repository.module_set_element
                                           )
                                         GROUP BY version, provider_id"])
           java-bases (map (fn [{:module/keys [version provider_id]
@@ -508,16 +508,16 @@
 
 
 (comment
-  (do (require '[dev.mccue.descriptors])
-      (require '[dev.mccue.repository :as rep])
+  (do (require '[dev.mccue.repository.descriptors])
+      (require '[dev.mccue.repository.repository :as rep])
     (let [db (user/db)]
       (doseq [artifact (procure {:fetch (partial #'rep/fetch-cached db)}
-                                (dev.mccue.descriptors/oracle-jdk))]
+                                (dev.mccue.repository.descriptors/oracle-jdk))]
         (rep/persist-module db artifact))))
 
-  (do (require '[dev.mccue.descriptors])
-      (require '[dev.mccue.repository :as rep])
-      (let [descriptors (->> (ns-publics 'dev.mccue.descriptors)
+  (do (require '[dev.mccue.repository.descriptors])
+      (require '[dev.mccue.repository.repository :as rep])
+      (let [descriptors (->> (ns-publics 'dev.mccue.repository.descriptors)
                              (vals)
                              (filterv (comp :descriptor meta))
                              (mapv (fn [f] (f))))]
@@ -525,12 +525,14 @@
         (doseq [descriptor descriptors]
           (println "-----")
           (println (:name descriptor))
-          (try (doseq [artifact (procure {:fetch (partial rep/fetch-cached (rep/from-file "modules.db"))} descriptor)]
-                 (rep/persist-module (rep/from-file "modules.db") artifact))
+          (try (doseq [artifact (procure {:fetch (partial rep/fetch-cached (user/db))} descriptor)]
+                 (rep/persist-module (user/db) artifact))
                (catch Exception e (Exception/.printStackTrace e))))))
-  (do (require '[dev.mccue.descriptors])
-      (require '[dev.mccue.repository :as rep])
-      (let [descriptors (dev.mccue.descriptors/get-all-from-index)
+  (do (require '[dev.mccue.repository.descriptors])
+      (require '[dev.mccue.repository.repository :as rep])
+      (let [count       (read-line)
+            descriptors (take (parse-long count)
+                              (dev.mccue.repository.descriptors/get-all-from-index))
             db          (user/db)]
         (doseq [descriptor (sort-by :name descriptors)]
           (println "-----")

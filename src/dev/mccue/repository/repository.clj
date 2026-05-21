@@ -20,12 +20,11 @@
   (let [digest (MessageDigest/getInstance "sha256")
         hash (HexFormat/.formatHex (HexFormat/of)
                                    (MessageDigest/.digest digest (:bytes artifact)))]
-    (jdbc/execute! db [(String/.stripIndent
-                         "INSERT INTO repository.artifact(sha256, data)
-                          VALUES (?, ?)
-                          ON CONFLICT DO NOTHING")
-                       hash
-                       (:bytes artifact)])
+    (jdbc/execute! db (sql/format {:insert-into :repository.artifact
+                                   :columns [:sha256 :data]
+                                   :values [[hash (:bytes artifact)]]
+                                   :on-conflict []
+                                   :do-nothing true}))
     hash))
 
 (defn persist-module
@@ -224,8 +223,8 @@
 (defn build-index
   [db]
   (let [temp-file (Files/createTempFile "new" ".db" (into-array FileAttribute []))]
-    (jdbc/with-transaction [t db]
-      (try
+    (try
+      (jdbc/with-transaction [t db]
         (let [index  (str temp-file)
               new-db (sqlite-db index)
 
@@ -257,5 +256,5 @@
           (transfer! :module_hash)
 
           (with-open [is (io/input-stream (Path/.toFile temp-file))]
-            (InputStream/.readAllBytes is)))
-        (finally (Files/deleteIfExists temp-file))))))
+            (InputStream/.readAllBytes is))))
+      (finally (Files/deleteIfExists temp-file)))))

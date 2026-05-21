@@ -1,5 +1,8 @@
 (ns dev.mccue.repository.routes
-  (:require [clojure.string :as string]
+  (:require [cheshire.core :as cheshire]
+            [clojure.string :as string]
+            [dev.mccue.jsonquery :as jsonquery]
+            [dev.mccue.middleware :as middleware]
             [next.jdbc :as jdbc]
             [hiccup2.core :as hiccup]
             [clojure.pprint :as pprint]
@@ -9,19 +12,7 @@
             [dev.mccue.page.helpers :as page-helpers])
   (:import (java.lang.module ModuleDescriptor$Version)))
 
-(defn page-response
-  [& {:keys [title head body status]}]
-  (page-helpers/hiccup-response
-    :status status
-    :body [:html {:lang "en"}
-           [:head
-            (list
-              [:script {:src "/htmx.js"}]
-              [:script {:src "/alpine.js"
-                        :defer true}]
-              [:title title]
-              head)]
-           [:body {:style "font-family: monospace"} body]]))
+
 
 (defn index-handler
   [{:system/keys [db]
@@ -32,11 +23,13 @@
           selected-modules (keys active-module-set)]
       (cond
         (empty? selected-modules)
-        (page-response
-          :body [:h1 "No modules selected yet"])
+        (page-helpers/page-response
+          :body (list
+                  [:h1 "Hello " [:code [:pre (:github/username (:session request))]]]
+                  [:h1 "No modules selected yet"]))
 
         :else
-        (page-response
+        (page-helpers/page-response
           
           :body
           (list
@@ -74,12 +67,12 @@
 
 (defn publish-handler
   [system request]
-  (page-response
+  (page-helpers/page-response
     :body [:h2 "Unimplemented"]))
 
 (defn get-search-handler
   [system request]
-  (page-response
+  (page-helpers/page-response
     :body
     (list
       [:div
@@ -293,7 +286,7 @@
                                        :name name
                                        :version version
                                        :provider-id provider-id)]
-        (page-response
+        (page-helpers/page-response
           :head
           [:script {:src "/force-graph.js"}]
           :body
@@ -307,12 +300,11 @@
   [{:system/keys [db]} request]
   (let [name (get (:path-params request) :name)
         provider-id (get (:query-params request) "provider-id")]
-    (when-let [ms (seq (jdbc/execute! db (h/format {:select [:module_set_element/*]
+    (when-let [ms (seq (jdbc/execute! db (h/format {:select [:*]
                                                     :from :repository.module_set
                                                     :where [:= :module_set/name name]
-                                                    :right-join [:module_set_element [:= :module_set/id :module_set_element/id]]})))]
-      (page-response
-
+                                                    :right-join [:repository.module_set_element [:= :module_set/id :module_set_element/id]]})))]
+      (page-helpers/page-response
         :body
         (list
           [:div {:style (page-helpers/css ["padding: 20px"
@@ -322,15 +314,69 @@
                "abc")])))))
 
 
+(defn get-modules-handler
+  [{:system/keys [db]} request]
+  {:status 200
+   :headers {"Content-Type" "application/json"}
+   :body (let [results (jsonquery/execute!
+                         db
+                         {:select [:name
+                                   :version
+                                   :target_platform
+                                   :mandated
+                                   :synthetic
+                                   [:requires {:select [:module
+                                                        :version
+                                                        :static
+                                                        :transitive
+                                                        :mandated
+                                                        :synthetic]
+                                               :from :repository.module_requires
+                                               :join-on [:id :module_id]}]
+                                   [:exports {:select [:package
+                                                       :to
+                                                       :mandated
+                                                       :synthetic]
+                                              :from :repository.module_exports
+                                              :join-on [:id :module_id]}]
+                                   [:uses {:select [:service]
+                                           :from :repository.module_uses
+                                           :join-on [:id :module_id]}]
+                                   [:provides {:select [:service
+                                                        :with]
+                                               :from :repository.module_provides
+                                               :join-on [:id :module_id]}]
+                                   [:packages {:select [:package]
+                                               :from :repository.module_package
+                                               :join-on [:id :module_id]}]
+                                   [:hashes {:select [:module
+                                                      :algorithm
+                                                      :hash]
+                                             :from :repository.module_hash
+                                             :join-on [:id :module_id]}]]
+                          :from :repository.module
+                          :order-by [[:repository.module.name :asc]
+                                     [:repository.module.version :desc]]})]
+           (cheshire/generate-string
+             (map (fn [result]
+                    (as-> result _
+                        (update _ :exports (fn [exports]
+                                             (map #(into {} (filter val %)) exports)))
+                        (update _ :requires (fn [requires]
+                                              (map #(into {} (filter val %)) requires)))
+                        (into {} (filter (comp #(if (seqable? %)
+                                                  (seq %) %)
+                                               val) _))))
+                  results)))})
+
 (defn routes
   [system]
-  ["" #_{:middleware [reitit-exception/exception-middleware]}
+  ["" {:middleware (middleware/standard-html-route-middleware system)}
    [["/" {:get {:handler (partial #'index-handler system)}}]
+    ["/api/modules" {:get (partial #'get-modules-handler system)}]
     ["/search" {:get  (partial #'get-search-handler system)
-                :post {:handler    (partial #'post-search-handler system)
-                       :middleware [reitit-parameters/parameters-middleware]}}]
-    ["/module/:name" {:get        (partial #'module-details-handler system)
-                      :middleware [reitit-parameters/parameters-middleware]}]
-    ["/module-set/:name" {:get (partial #'module-set-details-handler system)
-                          :middleware [reitit-parameters/parameters-middleware]}]
+                :post {:handler (partial #'post-search-handler system)}}]
+    ["/module/:name" {:get        (partial #'module-details-handler system)}]
+
+    ["/module-set/:name" {:get (partial #'module-set-details-handler system)}]
     ["/api/publish" {:post {:handler (partial #'publish-handler system)}}]]])

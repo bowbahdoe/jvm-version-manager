@@ -1,4 +1,4 @@
-(ns dev.mccue.repository.test
+(ns dev.mccue.repository-test
   (:require [clojure.test :as t]
             [dev.mccue.repository.module-info :as mi]))
 

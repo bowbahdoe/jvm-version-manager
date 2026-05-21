@@ -12,20 +12,20 @@
   (log/info "Fetching JDK")
   (try
     (binding [next.jdbc.transaction/*nested-tx* :ignore]
-      (if-let [job (jdbc/execute-one! db (h/format {:select [:jdk_ingestion_job/id
-                                                             :jdk_ingestion_job/windows_amd64_url
-                                                             :jdk_ingestion_job/windows_amd64_sha256_url
-                                                             :jdk_ingestion_job/windows_amd64_sha256
-                                                             :jdk_ingestion_job/macos_aarch64_url
-                                                             :jdk_ingestion_job/macos_aarch64_sha256_url
-                                                             :jdk_ingestion_job/macos_aarch64_sha256
-                                                             :jdk_ingestion_job/linux_aarch64_url
-                                                             :jdk_ingestion_job/linux_aarch64_sha256_url
-                                                             :jdk_ingestion_job/linux_aarch64_sha256
-                                                             :jdk_ingestion_job/linux_amd64_url
-                                                             :jdk_ingestion_job/linux_amd64_sha256_url
-                                                             :jdk_ingestion_job/linux_amd64_sha256
-                                                             :jdk_ingestion_job/provider_id]
+      (if-let [job (jdbc/execute-one! db (h/format {:select [:jdk_ingestion_job.id
+                                                             :jdk_ingestion_job.windows_amd64_url
+                                                             :jdk_ingestion_job.windows_amd64_sha256_url
+                                                             :jdk_ingestion_job.windows_amd64_sha256
+                                                             :jdk_ingestion_job.macos_aarch64_url
+                                                             :jdk_ingestion_job.macos_aarch64_sha256_url
+                                                             :jdk_ingestion_job.macos_aarch64_sha256
+                                                             :jdk_ingestion_job.linux_aarch64_url
+                                                             :jdk_ingestion_job.linux_aarch64_sha256_url
+                                                             :jdk_ingestion_job.linux_aarch64_sha256
+                                                             :jdk_ingestion_job.linux_amd64_url
+                                                             :jdk_ingestion_job.linux_amd64_sha256_url
+                                                             :jdk_ingestion_job.linux_amd64_sha256
+                                                             :jdk_ingestion_job.provider_id]
                                                     :from :repository.jdk_ingestion_job
                                                     :where [:= :jdk_ingestion_job/finished_at nil]
                                                     :limit 1}))]

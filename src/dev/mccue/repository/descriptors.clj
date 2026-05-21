@@ -4,7 +4,6 @@
     [dev.mccue.repository.module-info :as mi]
     [dev.mccue.repository.jmod :refer [maven-central-artifact]])
   (:import (java.io StringReader)
-           (java.nio.charset StandardCharsets)
            (java.util Map$Entry Properties)))
 
 
@@ -331,3 +330,15 @@
 
 
 
+;; If BOM
+;;   - Pull deps, put in module set
+;;   - BOM == module set
+;; Pick module sets
+;;   - Override specific modules manually
+;; json
+;; <...>
+;; Link a JDK
+;;   - ~/.jdk ?
+;;  - .jdk
+;; jackson 2.18.3
+;;;

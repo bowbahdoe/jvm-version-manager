@@ -1,13 +1,38 @@
 (ns dev.mccue.server
-  (:require [reitit.ring :as reitit-ring]
+  (:require [dev.mccue.middleware :as middleware]
+            [dev.mccue.module-set.routes :as module-set-routes]
+            [dev.mccue.oauth.routes :as oauth-routes]
             [dev.mccue.page.routes :as page-routes]
-            [dev.mccue.repository.routes :as repository-routes]))
+            [dev.mccue.register.routes :as register-routes]
+            [dev.mccue.repository.routes :as repository-routes]
+            [reitit.ring.middleware.exception :as middleware-exception]
+            [hiccup2.core :as hiccup]
+            [reitit.ring :as reitit-ring])
+  (:import (java.io PrintWriter StringWriter)))
+
 
 (defn handler
   [system request]
-  ((reitit-ring/ring-handler
-     (reitit-ring/router
-       ["" #_{:middleware [reitit-exception/exception-middleware]}
-        [(page-routes/routes system)
-         (repository-routes/routes system)]]))
-   request))
+  (try
+    ((reitit-ring/ring-handler
+       (reitit-ring/router
+         ["" {:middleware [middleware/log-request-middleware]}
+          [(module-set-routes/routes system)
+           (oauth-routes/routes system)
+           (page-routes/routes system)
+           (repository-routes/routes system)
+           (register-routes/routes system)]])
+       (constantly {:status 404
+                    :body "Not Found"}))
+
+     request)
+    (catch Exception e
+      {:status 500
+       :headers {"Content-Type" "text/html"}
+       :body (str
+               (hiccup/html
+                 [:code
+                  [:pre
+                   (let [sw (StringWriter.)]
+                     (.printStackTrace e (PrintWriter. sw))
+                     (.toString sw))]]))})))

@@ -1,7 +1,7 @@
 (ns user
   (:require [dev.mccue.system :as system]))
 
-(def system nil)
+(defonce system nil)
 
 (defn start!
   []
@@ -21,3 +21,15 @@
 (defn db
   []
   (:system/db system))
+
+(defn server
+  []
+  (:system/server system))
+
+(defn admin-db
+  []
+  (:system/admin-db system))
+
+(defn worker
+  []
+  (:system/worker system))

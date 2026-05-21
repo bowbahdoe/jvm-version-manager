@@ -1,5 +1,6 @@
 (ns dev.mccue.page.routes
-  (:require [clojure.java.io :as io]))
+  (:require [clojure.java.io :as io]
+            [clj-commons.byte-streams :as bs]))
 
 (def htmx-js (slurp (io/resource "htmx.js")))
 
@@ -25,9 +26,20 @@
    :headers {"Content-Type" "application/json"}
    :body    force-graph-js})
 
+(def favicon (with-open [is (io/input-stream (io/resource "favicon.ico"))]
+               (bs/to-byte-array is)))
+
+(defn favicon-handler
+  [_ _]
+  {:status  200
+   :headers {"Content-Type" "image/png"}
+   :body    favicon})
+
+
 (defn routes
   [system]
   ["" #_{:middleware [reitit-exception/exception-middleware]}
-   [["/htmx.js" {:get {:handler (partial #'htmx-handler system)}}]
+   [["/favicon.ico" {:get {:handler (partial #'favicon-handler system)}}]
+    ["/htmx.js" {:get {:handler (partial #'htmx-handler system)}}]
     ["/alpine.js" {:get {:handler (partial #'alpine-handler system)}}]
     ["/force-graph.js" {:get {:handler (partial #'force-graph-handler system)}}]]])
