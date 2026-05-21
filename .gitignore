@@ -9,3 +9,4 @@ target
 .nrepl-port
 data
 migrations/environments/production.properties
+.env
