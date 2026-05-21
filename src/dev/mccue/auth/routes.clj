@@ -75,7 +75,7 @@
 (defn routes
   [system]
   ["" {:middleware (middleware/standard-html-route-middleware system)}
-   [["/" {:get (partial #'index-handler system)}]
+   [["/"                 {:get (partial #'index-handler system)}]
     ["/logout"           {:get (partial #'get-logout-handler system)}]
     (let [github-launch-uri   "/oauth2/github"
           github-redirect-uri "/oauth2/github/callback"
