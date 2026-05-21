@@ -14,7 +14,6 @@
    "border: 2px solid black"
    "border-radius: 2px"
    "width: fit-content"
-
    "height: fit-content"
    "padding: 4px"])
 

@@ -1,6 +1,7 @@
 (ns dev.mccue.system
   (:require [cheshire.core :as cheshire]
             [clojure.tools.logging :as log]
+            [dev.mccue.environment :as environment]
             [dev.mccue.server :as server]
             [dev.mccue.workers :as workers]
             [dev.mccue.session-store :as session-store]
@@ -18,8 +19,9 @@
 (defn start-server!
   [system]
   (jetty/run-jetty
-    (partial #'server/handler system)
-
+    (if (environment/development?)
+      (partial #'server/handler system)
+      (server/handler system))
     {:port  (or (some-> (System/getenv "PORT") (parse-long))
                 8999)
      :join? false}))
@@ -32,9 +34,9 @@
   [{:system/keys []}]
   (let [db (jdbc/get-datasource {:dbtype "postgres"
                                  :host (System/getenv "POSTGRES_HOST")
-                                 :dbname (or (System/getenv "POSTGRES_DB") "postgres")
-                                 :username (or (System/getenv "POSTGRES_USER") "postgres")
-                                 :password (or (System/getenv "POSTGRES_PASSWORD") "postgres")})]
+                                 :dbname (System/getenv "POSTGRES_DB")
+                                 :username (System/getenv "POSTGRES_USER")
+                                 :password (System/getenv "POSTGRES_PASSWORD")})]
     (-> (ProxyDataSourceBuilder/create db)
         (ProxyDataSourceBuilder/.logQueryBySlf4j SLF4JLogLevel/INFO)
         (ProxyDataSourceBuilder/.build))))
@@ -48,9 +50,9 @@
   (let [db (connection/->pool HikariDataSource
                               {:dbtype "postgres"
                                :host (System/getenv "POSTGRES_HOST")
-                               :dbname (or (System/getenv "POSTGRES_DB") "postgres")
-                               :username (or (System/getenv "POSTGRES_USER") "postgres")
-                               :password (or (System/getenv "POSTGRES_PASSWORD") "postgres")})]
+                               :dbname (System/getenv "POSTGRES_DB")
+                               :username (System/getenv "POSTGRES_USER")
+                               :password (System/getenv "POSTGRES_PASSWORD")})]
     (-> (ProxyDataSourceBuilder/create db)
         (ProxyDataSourceBuilder/.logQueryBySlf4j SLF4JLogLevel/DEBUG)
         (ProxyDataSourceBuilder/.build))))

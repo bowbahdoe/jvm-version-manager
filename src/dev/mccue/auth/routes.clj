@@ -67,9 +67,15 @@
             (for [user (jsonquery/execute! db {:select [:id :profile_image_png_base64]
                                                :from   :identity.user})]
               [:li [:img {:src (str "data:image/png;base64, " (:profile_image_png_base64 user))
-                          :width 128
-                          :height 128
-                          :style "image-rendering: pixelated"}]
+                          :width 64
+                          :height 64
+                          :style (page-helpers/css
+                                   ["margin: 4px"
+                                    "border: 2px solid black"
+                                    "border-radius: 2px"
+
+                                    "image-rendering: pixelated"
+                                    "padding: 4px"])}]
                [:p (:id user)]])]]))
 
 (defn routes

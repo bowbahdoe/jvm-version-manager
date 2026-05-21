@@ -1,5 +1,7 @@
 (ns dev.mccue.middleware
   (:require [clojure.tools.logging :as log]
+            [honey.sql :as sql]
+            [next.jdbc :as jdbc]
             [ring.middleware.anti-forgery :refer [wrap-anti-forgery]]
             [ring.middleware.content-type :refer [wrap-content-type]]
             [ring.middleware.cookies :refer [wrap-cookies]]
@@ -12,7 +14,9 @@
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.session :refer [wrap-session]]
             [ring.middleware.x-headers :as x]
-            [dev.mccue.environment :as environment]))
+            [dev.mccue.environment :as environment]
+            [ring.util.response :as response])
+  (:import (java.util UUID)))
 
 (defn standard-html-route-middleware
   [{:system/keys [session-store]}]
@@ -41,7 +45,7 @@
    #(wrap-session % {:cookie-attrs {:http-only true
                                     :same-site :lax
                                     :secure    (environment/production?)}
-                     :store session-store})
+                     :store        session-store})
    ;; Handles "flash" data which is around only until the
    ;; immediate next request.
    wrap-flash
@@ -55,3 +59,21 @@
     (let [response (handler request)]
       (log/info (str (:request-method request) " " (:uri request) " - " (:status response)))
       response)))
+
+(defn require-authenticated-user-middleware
+  [{:system/keys [db]}]
+  (fn require-authenticated-user-middleware
+    [handler]
+    (fn [request]
+      (or (when-let [user_id (:user_id (:session request))]
+            (when-let [user-info (jdbc/execute-one! db (sql/format
+                                                         {:select [:id]
+                                                          :from   :identity.user
+                                                          :where  [:= :id (parse-uuid user_id)]}))]
+              (handler (assoc request :user user-info))))
+          (response/redirect "/")))))
+
+(defn standard-authenticated-html-route-middleware
+  [system]
+  (vec (concat (standard-html-route-middleware system)
+               [(require-authenticated-user-middleware system)])))
