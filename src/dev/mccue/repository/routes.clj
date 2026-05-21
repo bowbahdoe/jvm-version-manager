@@ -14,7 +14,7 @@
 
 
 
-(defn index-handler
+(defn module-set-builder-handler
   [{:system/keys [db]
     :as          system}
    request]
@@ -25,7 +25,6 @@
         (empty? selected-modules)
         (page-helpers/page-response
           :body (list
-                  [:h1 "Hello " [:code [:pre (:github/username (:session request))]]]
                   [:h1 "No modules selected yet"]))
 
         :else
@@ -372,7 +371,7 @@
 (defn routes
   [system]
   ["" {:middleware (middleware/standard-html-route-middleware system)}
-   [["/" {:get {:handler (partial #'index-handler system)}}]
+   [["/module-set-builder" {:get {:handler (partial #'module-set-builder-handler system)}}]
     ["/api/modules" {:get (partial #'get-modules-handler system)}]
     ["/search" {:get  (partial #'get-search-handler system)
                 :post {:handler (partial #'post-search-handler system)}}]

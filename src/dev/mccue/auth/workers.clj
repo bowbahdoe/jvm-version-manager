@@ -1,4 +1,4 @@
-(ns dev.mccue.register.workers
+(ns dev.mccue.auth.workers
   (:require [honey.sql :as sql]
             [next.jdbc :as jdbc])
   (:import (dev.mccue.duke Duke Seed)

@@ -1,7 +1,7 @@
 (ns dev.mccue.server
   (:require [dev.mccue.middleware :as middleware]
             [dev.mccue.module-set.routes :as module-set-routes]
-            [dev.mccue.oauth.routes :as oauth-routes]
+            [dev.mccue.auth.routes :as oauth-routes]
             [dev.mccue.page.routes :as page-routes]
             [dev.mccue.register.routes :as register-routes]
             [dev.mccue.repository.routes :as repository-routes]

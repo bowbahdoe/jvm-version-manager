@@ -1,6 +1,6 @@
 (ns dev.mccue.workers
   (:require [clojure.tools.logging :as log]
-            [dev.mccue.register.workers :as register-workers]))
+            [dev.mccue.auth.workers :as register-workers]))
 
 (defn handle-job!
   [system job-type payload]
