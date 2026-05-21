@@ -11,7 +11,8 @@
             [ring.middleware.not-modified :refer [wrap-not-modified]]
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.session :refer [wrap-session]]
-            [ring.middleware.x-headers :as x]))
+            [ring.middleware.x-headers :as x]
+            [dev.mccue.environment :as environment]))
 
 (defn standard-html-route-middleware
   [{:system/keys [session-store]}]
@@ -38,7 +39,8 @@
    wrap-keyword-params
    ;; Handles reading and writing "session data"
    #(wrap-session % {:cookie-attrs {:http-only true
-                                    :same-site :lax}
+                                    :same-site :lax
+                                    :secure    (environment/production?)}
                      :store session-store})
    ;; Handles "flash" data which is around only until the
    ;; immediate next request.

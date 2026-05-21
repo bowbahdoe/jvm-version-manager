@@ -3,6 +3,7 @@
             [clojure.string :as string]
             [clojure.tools.logging :as log]
             [dev.mccue.auth.duke :as duke]
+            [dev.mccue.environment :as environment]
             [dev.mccue.jsonquery :as jsonquery]
             [dev.mccue.middleware :as middleware]
             [dev.mccue.page.helpers :as page-helpers]
@@ -57,6 +58,7 @@
   (page-helpers/page-response
     :title "ALL USERS"
     :body [:div
+           [:h1 (str "prod? " (environment/production?))]
            [:h1 (str "Hello: " (:user_id (:session request)))]
            [:a {:href "/oauth2/github"} "Login with GitHub"]
            [:br]
