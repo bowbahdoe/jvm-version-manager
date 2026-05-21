@@ -2,6 +2,7 @@
   (:require [cheshire.core :as cheshire]
             [clojure.string :as string]
             [clojure.tools.logging :as log]
+            [dev.mccue.auth.duke :as duke]
             [dev.mccue.jsonquery :as jsonquery]
             [dev.mccue.middleware :as middleware]
             [dev.mccue.page.helpers :as page-helpers]
@@ -10,7 +11,8 @@
             [ring.middleware.oauth2 :as oauth2 :refer [wrap-oauth2]]
             [clj-http.client :as clj-http-client]
             [ring.util.response :as response])
-  (:import (java.util Hashtable)
+  (:import (dev.mccue.duke Duke Seed)
+           (java.util Hashtable)
            (javax.naming NamingEnumeration)
            (javax.naming.directory DirContext InitialDirContext Attributes Attribute)))
 
@@ -32,8 +34,8 @@
           github-user-id (get (cheshire/parse-string (:body response)) "id")]
       (jdbc/execute! db (sql/format
                           {:insert-into :identity.user
-                           :columns [:github_user_id]
-                           :values  [[(str github-user-id)]]
+                           :columns [:github_user_id :profile_image_png_base64]
+                           :values  [[(str github-user-id) (duke/duke->png-base64 (Duke. (Seed. github-user-id)))]]
                            :on-conflict []
                            :do-nothing  true}))
       (let [{:user/keys [id]} (jdbc/execute-one! db (sql/format

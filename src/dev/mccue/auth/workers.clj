@@ -1,32 +1,20 @@
 (ns dev.mccue.auth.workers
   (:require [honey.sql :as sql]
-            [next.jdbc :as jdbc])
-  (:import (dev.mccue.duke Duke Seed)
-           (java.util Base64 Base64$Encoder UUID)
-           (javax.imageio ImageIO)
-           (org.apache.commons.io.output ByteArrayOutputStream)))
+            [next.jdbc :as jdbc]
+            [dev.mccue.auth.duke :as duke])
+  (:import (java.util UUID)))
 
-(defn uuid->duke
-  [uuid]
-  (Duke. (Seed. (UUID/.getLeastSignificantBits uuid))))
-
-(defn duke->png-base64
-  [duke]
-  (let [image (Duke/.toBufferedImage_32x32 duke)
-        baos  (ByteArrayOutputStream.)]
-    (ImageIO/write image "png" baos)
-    (-> (Base64/getEncoder)
-        (Base64$Encoder/.encodeToString (ByteArrayOutputStream/.toByteArray baos)))))
 
 (defn identity_user-genProfileImage
-  "When a user signs up, we generate a profile photo for them."
+  "When a user signs up, we generate a profile photo for them if they didn't get one
+   from some other mechanism."
   [{:system/keys [db]} _job-type payload]
   (let [{:keys [id profile_image_png_base64]} payload
         id (UUID/fromString id)]
     (when-not profile_image_png_base64
       (jdbc/execute! db (sql/format
                           {:update :identity.user
-                           :set {:profile_image_png_base64 (duke->png-base64 (uuid->duke id))}
+                           :set {:profile_image_png_base64 (duke/duke->png-base64 (duke/uuid->duke id))}
                            :where [:and
                                    [:= :profile_image_png_base64 nil]
                                    [:= :id id]]}
