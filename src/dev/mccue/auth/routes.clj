@@ -59,38 +59,40 @@
   (page-helpers/page-response
     :title "ALL USERS"
     :body [:div
-           [:div {:class "mt-10 flex flex-col items-center justify-center gap-x-6 gap-y-6"}
-            [:a {:href  "/oauth2/github"
-                 :class (classes ["rounded-md"
-                                  "bg-black"
-                                  "px-3.5"
-                                  "py-2.5"
-                                  "text-sm"
-                                  "font-semibold"
-                                  "text-white"
-                                  "shadow-xs"
-                                  "hover:outline-2"
-                                  "hover:outline-offset-2"
-                                  "hover:outline-black"
-                                  "focus-visible:outline-2"
-                                  "focus-visible:outline-offset-2"
-                                  "focus-visible:outline-black"])} "Login with GitHub"]
-            [:a {:href  "/logout"
-                 :class (page-helpers/classes ["rounded-md"
-                                               "bg-black"
-                                               "px-3.5"
-                                               "py-2.5"
-                                               "text-sm"
-                                               "font-semibold"
-                                               "text-white"
-                                               "shadow-xs"
-                                               "hover:outline-2"
-                                               "hover:outline-offset-2"
-                                               "hover:outline-black"
-                                               "focus-visible:outline-2"
-                                               "focus-visible:outline-offset-2"
-                                               "focus-visible:outline-black"])}
-             "Logout"]]
+           [:div {:class "mt-10 flex flex-row items-center justify-center gap-x-6 gap-y-6"}
+            (when-not (:user request)
+              [:a {:href  "/oauth2/github"
+                   :class (classes ["rounded-md"
+                                    "bg-black"
+                                    "px-3.5"
+                                    "py-2.5"
+                                    "text-sm"
+                                    "font-semibold"
+                                    "text-white"
+                                    "shadow-xs"
+                                    "hover:outline-2"
+                                    "hover:outline-offset-2"
+                                    "hover:outline-black"
+                                    "focus-visible:outline-2"
+                                    "focus-visible:outline-offset-2"
+                                    "focus-visible:outline-black"])} "Login with GitHub"])
+            (when (:user request)
+              [:a {:href  "/logout"
+                   :class (page-helpers/classes ["rounded-md"
+                                                 "bg-black"
+                                                 "px-3.5"
+                                                 "py-2.5"
+                                                 "text-sm"
+                                                 "font-semibold"
+                                                 "text-white"
+                                                 "shadow-xs"
+                                                 "hover:outline-2"
+                                                 "hover:outline-offset-2"
+                                                 "hover:outline-black"
+                                                 "focus-visible:outline-2"
+                                                 "focus-visible:outline-offset-2"
+                                                 "focus-visible:outline-black"])}
+               "Logout"])]
 
            (when-let [user (:user request)]
              (let [user-info (jsonquery/execute-one! db {:select [:id :profile_image_png_base64]
