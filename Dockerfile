@@ -4,6 +4,8 @@ FROM node:lts-alpine3.23 AS tailwind
 WORKDIR /app
 COPY ./css ./css
 COPY package*.json ./
+COPY src .
+COPY res .
 
 RUN npm ci
 
