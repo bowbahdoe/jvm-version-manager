@@ -5,7 +5,6 @@
             [dev.mccue.page.helpers :as page-helpers]
             [dev.mccue.page.routes :as page-routes]
             [dev.mccue.qa.routes :as qa-routes]
-            [dev.mccue.register.routes :as register-routes]
             [dev.mccue.repository.routes :as repository-routes]
             [reitit.ring.middleware.exception :as middleware-exception]
             [hiccup2.core :as hiccup]
@@ -22,8 +21,7 @@
                         (oauth-routes/routes system)
                         (page-routes/routes system)
                         (qa-routes/routes system)
-                        (repository-routes/routes system)
-                        (register-routes/routes system)]])
+                        (repository-routes/routes system)]])
                     #'page-helpers/_404-page-response)]
      (fn request-handler
        [request]
