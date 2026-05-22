@@ -59,40 +59,56 @@
   (page-helpers/page-response
     :title "ALL USERS"
     :body [:div
-           [:div {:class "mt-10 flex flex-row items-center justify-center gap-x-6 gap-y-6"}
-            (when-not (:user request)
-              [:a {:href  "/oauth2/github"
-                   :class (classes ["rounded-md"
-                                    "bg-black"
-                                    "px-3.5"
-                                    "py-2.5"
-                                    "text-sm"
-                                    "font-semibold"
-                                    "text-white"
-                                    "shadow-xs"
-                                    "hover:outline-2"
-                                    "hover:outline-offset-2"
-                                    "hover:outline-black"
-                                    "focus-visible:outline-2"
-                                    "focus-visible:outline-offset-2"
-                                    "focus-visible:outline-black"])} "Login with GitHub"])
-            (when (:user request)
-              [:a {:href  "/logout"
-                   :class (page-helpers/classes ["rounded-md"
-                                                 "bg-black"
-                                                 "px-3.5"
-                                                 "py-2.5"
-                                                 "text-sm"
-                                                 "font-semibold"
-                                                 "text-white"
-                                                 "shadow-xs"
-                                                 "hover:outline-2"
-                                                 "hover:outline-offset-2"
-                                                 "hover:outline-black"
-                                                 "focus-visible:outline-2"
-                                                 "focus-visible:outline-offset-2"
-                                                 "focus-visible:outline-black"])}
-               "Logout"])]
+           [:div {:class (classes ["flex"
+                                   "h-screen"])}
+            [:aside {:class (classes ["w-60 border-r bg-white flex flex-col"])}
+             [:nav {:class (classes ["flex-1 px-3 space-y-1"])}
+              [:a {:class (classes ["flex items-center gap-3 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"])}
+               "ABC"]
+              [:a {:class (classes ["flex items-center gap-3 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"])}
+               "DEF"]
+              [:a {:class (classes ["flex items-center gap-3 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"])}
+               "DEF"]
+              [:a {:class (classes ["flex items-center gap-3 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"])}
+               "DEF"]]
+             #_[:nav {:class (classes ["flex-1 px-3 space-y-1"])}]]
+
+            [:main {:class (classes ["flex-1 overflow-y-auto"])}
+
+             [:div {:class "mt-10 flex flex-row items-center justify-center gap-x-6 gap-y-6"}
+              (when-not (:user request)
+                [:a {:href  "/oauth2/github"
+                     :class (classes ["rounded-md"
+                                      "bg-black"
+                                      "px-3.5"
+                                      "py-2.5"
+                                      "text-sm"
+                                      "font-semibold"
+                                      "text-white"
+                                      "shadow-xs"
+                                      "hover:outline-2"
+                                      "hover:outline-offset-2"
+                                      "hover:outline-black"
+                                      "focus-visible:outline-2"
+                                      "focus-visible:outline-offset-2"
+                                      "focus-visible:outline-black"])} "Login with GitHub"])
+              (when (:user request)
+                [:a {:href  "/logout"
+                     :class (page-helpers/classes ["rounded-md"
+                                                   "bg-black"
+                                                   "px-3.5"
+                                                   "py-2.5"
+                                                   "text-sm"
+                                                   "font-semibold"
+                                                   "text-white"
+                                                   "shadow-xs"
+                                                   "hover:outline-2"
+                                                   "hover:outline-offset-2"
+                                                   "hover:outline-black"
+                                                   "focus-visible:outline-2"
+                                                   "focus-visible:outline-offset-2"
+                                                   "focus-visible:outline-black"])}
+                 "Logout"])]]]
 
            (when-let [user (:user request)]
              (let [user-info (jsonquery/execute-one! db {:select [:id :profile_image_png_base64]
