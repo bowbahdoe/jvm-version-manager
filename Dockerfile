@@ -1,4 +1,4 @@
-FROM node:lts-alpine3.23 as tailwind
+FROM node:lts-alpine3.23 AS tailwind
 
 
 WORKDIR /app
@@ -22,9 +22,9 @@ RUN ./linux-install.sh
 RUN rm linux-install.sh
 
 # Copy Project Files Over
-COPY --from=tailwind ./app/res/tailwind.css ./res/tailwind.css
 COPY ./src ./src
 COPY ./res ./res
+COPY --from=tailwind ./app/res/tailwind.ss ./res/tailwind.css
 COPY ./jars ./jars
 COPY ./deps.edn ./deps.edn
 
