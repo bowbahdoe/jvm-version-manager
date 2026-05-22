@@ -14,7 +14,7 @@
             [ring.util.response :as response])
 
   (:import (dev.mccue.duke Duke Seed)
-           (java.util Hashtable)
+           (java.util Base64 Base64$Encoder Hashtable)
            (javax.naming NamingEnumeration)
            (javax.naming.directory DirContext InitialDirContext Attributes Attribute)))
 
@@ -44,6 +44,36 @@
                                                       {:select [:id]
                                                        :from   :identity.user
                                                        :where  [:= :github_user_id (str github-user-id)]}))]
+        (-> (response/redirect "/")
+            (assoc :session (-> (:session request)
+                                (dissoc ::oauth2/access-tokens)
+                                (assoc :user_id id))))))))
+
+(defn get-discord-landing-handler
+  [{:system/keys [db]} request]
+  (let [{:keys [token]} (:discord (::oauth2/access-tokens (:session request)))]
+    (let [response (clj-http-client/get "https://discord.com/api/oauth2/@me"
+                                        {:headers {"Authorization" (str "Bearer " token)}})
+          discord-user-info (get (cheshire/parse-string (:body response)) "user")
+          discord-user-id (get discord-user-info "id")
+          avatar-base64   (-> (Base64/getEncoder)
+                              (Base64$Encoder/.encodeToString
+                                (:body (clj-http.client/get (str "https://cdn.discordapp.com/avatars/"
+                                                                 discord-user-id
+                                                                 "/"
+                                                                 (get discord-user-info "avatar")
+                                                                 ".png?size=32")
+                                                            {:as :byte-array}))))]
+      (jdbc/execute! db (sql/format
+                          {:insert-into :identity.user
+                           :columns     [:discord_user_id :profile_image_png_base64]
+                           :values      [[(str discord-user-id) avatar-base64]]
+                           :on-conflict []
+                           :do-nothing  true}))
+      (let [{:user/keys [id]} (jdbc/execute-one! db (sql/format
+                                                      {:select [:id]
+                                                       :from   :identity.user
+                                                       :where  [:= :discord_user_id (str discord-user-id)]}))]
         (-> (response/redirect "/")
             (assoc :session (-> (:session request)
                                 (dissoc ::oauth2/access-tokens)
@@ -92,6 +122,22 @@
                                       "focus-visible:outline-2"
                                       "focus-visible:outline-offset-2"
                                       "focus-visible:outline-black"])} "Login with GitHub"])
+              (when-not (:user request)
+                [:a {:href  "/oauth2/discord"
+                     :class (classes ["rounded-md"
+                                      "bg-black"
+                                      "px-3.5"
+                                      "py-2.5"
+                                      "text-sm"
+                                      "font-semibold"
+                                      "text-white"
+                                      "shadow-xs"
+                                      "hover:outline-2"
+                                      "hover:outline-offset-2"
+                                      "hover:outline-black"
+                                      "focus-visible:outline-2"
+                                      "focus-visible:outline-offset-2"
+                                      "focus-visible:outline-black"])} "Login with Discord"])
               (when (:user request)
                 [:a {:href  "/logout"
                      :class (page-helpers/classes ["rounded-md"
@@ -137,6 +183,23 @@
   ["" {:middleware (middleware/standard-html-route-middleware system)}
    [["/" {:get (partial #'index-handler system)}]
     ["/logout" {:get (partial #'get-logout-handler system)}]
+    (let [discord-launch-uri "/oauth2/discord"
+          discord-redirect-uri "/oauth2/discord/callback"
+          discord-landing-uri "/oauth2/discord/landing"]
+      ["" {:middleware [#(wrap-oauth2 % {:discord
+                                         {:authorize-uri    "https://discord.com/oauth2/authorize"
+                                          :access-token-uri "https://discord.com/api/oauth2/token"
+                                          :client-id        (System/getenv "DISCORD_CLIENT_ID")
+                                          :client-secret    (System/getenv "DISCORD_CLIENT_SECRET")
+                                          :scopes           ["identify" "email"]
+                                          :launch-uri       discord-launch-uri
+                                          :redirect-uri     discord-redirect-uri
+                                          :landing-uri      discord-landing-uri}})]}
+       [[discord-launch-uri {:get #'dummy-route-handler}]
+        [discord-redirect-uri {:get #'dummy-route-handler}]
+        [discord-landing-uri {:get (partial #'get-discord-landing-handler system)}]]])
+
+
     (let [github-launch-uri "/oauth2/github"
           github-redirect-uri "/oauth2/github/callback"
           github-landing-uri "/oauth2/github/landing"]
