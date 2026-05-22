@@ -57,6 +57,14 @@
           (format
             (->honeysql query)))))
 
+(defn execute-one!
+  [db query]
+  ((comp #(cheshire/parse-string % keyword) str :json_build_object)
+   (jdbc/execute-one!
+     db
+     (format
+       (->honeysql query)))))
+
 
 
 (comment

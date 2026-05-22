@@ -1,5 +1,6 @@
 (ns user
-  (:require [dev.mccue.system :as system]))
+  (:require [clojure.string :as string]
+            [dev.mccue.system :as system]))
 
 (defonce system nil)
 
@@ -33,3 +34,7 @@
 (defn worker
   []
   (:system/worker system))
+
+(defn split-classes
+  [str]
+  (list 'classes (vec (string/split str #" "))))

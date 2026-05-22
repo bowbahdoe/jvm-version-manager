@@ -8,6 +8,7 @@ check_cli_tools:
     migrate info || echo "please install mybatis migrations"
     clojure --version || echo "please install the clojure cli tools"
     jresolve --version || echo "please install jresolve"
+    npx --version || echo "npm is needed for tailwind"
 
 # Downloads Postgresql Driver Jars needed for migrations
 download_postgres_drivers:

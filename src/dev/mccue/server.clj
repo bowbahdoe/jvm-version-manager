@@ -2,6 +2,7 @@
   (:require [dev.mccue.middleware :as middleware]
             [dev.mccue.module-set.routes :as module-set-routes]
             [dev.mccue.auth.routes :as oauth-routes]
+            [dev.mccue.page.helpers :as page-helpers]
             [dev.mccue.page.routes :as page-routes]
             [dev.mccue.qa.routes :as qa-routes]
             [dev.mccue.register.routes :as register-routes]
@@ -23,8 +24,7 @@
                         (qa-routes/routes system)
                         (repository-routes/routes system)
                         (register-routes/routes system)]])
-                    (constantly {:status 404
-                                 :body "Not Found"}))]
+                    #'page-helpers/_404-page-response)]
      (fn request-handler
        [request]
        (try

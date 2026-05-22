@@ -1,5 +1,6 @@
 (ns dev.mccue.middleware
   (:require [clojure.tools.logging :as log]
+            [dev.mccue.environment :as environment]
             [honey.sql :as sql]
             [next.jdbc :as jdbc]
             [ring.middleware.anti-forgery :refer [wrap-anti-forgery]]
@@ -14,12 +15,30 @@
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.session :refer [wrap-session]]
             [ring.middleware.x-headers :as x]
-            [dev.mccue.environment :as environment]
-            [ring.util.response :as response])
-  (:import (java.util UUID)))
+            [ring.util.response :as response]))
+
+(defn log-request-middleware
+  [handler]
+  (fn [request]
+    (let [response (handler request)]
+      (log/info (str (:request-method request) " " (:uri request) " - " (:status response)))
+      response)))
+
+(defn authenticate-user-middleware
+  [db]
+  (fn authenticate-user-middleware
+    [handler]
+    (fn [request]
+      (or (when-let [user_id (:user_id (:session request))]
+            (when-let [user-info (jdbc/execute-one! db (sql/format
+                                                         {:select [:id]
+                                                          :from   :identity.user
+                                                          :where  [:= :id (parse-uuid user_id)]}))]
+              (handler (assoc request :user user-info))))
+          (handler request)))))
 
 (defn standard-html-route-middleware
-  [{:system/keys [session-store]}]
+  [{:system/keys [session-store db]}]
   [;; Prevents "media type confusion" attacks
    #(x/wrap-content-type-options % :nosniff)
    ;; Prevents "clickjacking" attacks
@@ -50,28 +69,21 @@
    ;; immediate next request.
    wrap-flash
    ;; Ensures that POST requests contain an anti-forgery token
-   wrap-anti-forgery])
+   wrap-anti-forgery
+   ;; If we have a user_id in the session, confirm it is valid
+   ;; and put a :user key in the request
+   (authenticate-user-middleware db)])
 
-(defn log-request-middleware
-  [handler]
-  (fn [request]
-    #_(log/info (str "req: " (:request-method request) " " (:uri request)))
-    (let [response (handler request)]
-      (log/info (str (:request-method request) " " (:uri request) " - " (:status response)))
-      response)))
+
 
 (defn require-authenticated-user-middleware
   [{:system/keys [db]}]
   (fn require-authenticated-user-middleware
     [handler]
     (fn [request]
-      (or (when-let [user_id (:user_id (:session request))]
-            (when-let [user-info (jdbc/execute-one! db (sql/format
-                                                         {:select [:id]
-                                                          :from   :identity.user
-                                                          :where  [:= :id (parse-uuid user_id)]}))]
-              (handler (assoc request :user user-info))))
-          (response/redirect "/")))))
+      (if (:user request)
+        (handler request)
+        (response/redirect "/")))))
 
 (defn standard-authenticated-html-route-middleware
   [system]
