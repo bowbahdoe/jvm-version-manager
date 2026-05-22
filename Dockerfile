@@ -2,8 +2,13 @@ FROM node:lts-alpine3.23 as tailwind
 
 COPY . .
 
-RUN npm i
-RUN npx @tailwindcss/cli --optimize -i ./css/input.css -o ./res/tailwind.css
+WORKDIR /app
+COPY ./css ./css
+COPY package*.json ./
+
+RUN npm ci
+
+RUN npx @tailwindcss/cli --optimize -i ../css/input.css -o ./res/tailwind.css
 
 FROM eclipse-temurin:26-jdk
 
@@ -18,7 +23,7 @@ RUN ./linux-install.sh
 RUN rm linux-install.sh
 
 # Copy Project Files Over
-COPY --from=tailwind ./res/tailwind.css ./res/tailwind.css
+COPY --from=tailwind ./app/res/tailwind.css ./res/tailwind.css
 COPY ./src ./src
 COPY ./res ./res
 COPY ./jars ./jars
