@@ -1,6 +1,8 @@
 FROM node:lts-alpine3.23 as tailwind
 
 COPY ./css ./css
+COPY package.json package.json
+COPY package-lock.json package-lock.json
 
 RUN npx @tailwindcss/cli --optimize -i ./css/input.css -o ./res/tailwind.css
 
