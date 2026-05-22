@@ -91,15 +91,71 @@
     :body [:div
            [:div {:class (classes ["flex"
                                    "h-screen"])}
-            [:aside {:class (classes ["w-60 border-r bg-white flex flex-col"])}
-             [:nav {:class (classes ["flex-1 px-3 space-y-1"])}
-              [:a {:class (classes ["flex items-center gap-3 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"])}
+            [:aside {:class (classes ["w-60 border-r-4 bg-white flex flex-col"])}
+             [:nav {:class (classes ["flex-1 px-3 space-y-4"])}
+              [:a {:class (classes ["flex items-center gap-3 px-4 py-2 my-4"
+                                    "justify-center"
+                                    "px-3.5"
+                                    "py-2.5"
+                                    "text-sm"
+                                    "font-semibold"
+                                    "text-black"
+                                    "shadow-xs"
+                                    "outline-2"
+                                    "hover:outline-2"
+                                    "hover:outline-offset-2"
+                                    "hover:outline-black"
+                                    "focus-visible:outline-2"
+                                    "focus-visible:outline-offset-2"
+                                    "focus-visible:outline-black"])}
                "Ask"]
-              [:a {:class (classes ["flex items-center gap-3 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"])}
+              [:a {:class (classes ["flex items-center gap-3 px-4 py-2 my-4"
+                                    "justify-center"
+                                    "px-3.5"
+                                    "py-2.5"
+                                    "text-sm"
+                                    "font-semibold"
+                                    "text-black"
+                                    "shadow-xs"
+                                    "outline-2"
+                                    "hover:outline-2"
+                                    "hover:outline-offset-2"
+                                    "hover:outline-black"
+                                    "focus-visible:outline-2"
+                                    "focus-visible:outline-offset-2"
+                                    "focus-visible:outline-black"])}
                "Answer"]
-              [:a {:class (classes ["flex items-center gap-3 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"])}
+              [:a {:class (classes ["flex items-center gap-3 px-4 py-2 my-4"
+                                    "justify-center"
+                                    "px-3.5"
+                                    "py-2.5"
+                                    "text-sm"
+                                    "font-semibold"
+                                    "text-black"
+                                    "shadow-xs"
+                                    "outline-2"
+                                    "hover:outline-2"
+                                    "hover:outline-offset-2"
+                                    "hover:outline-black"
+                                    "focus-visible:outline-2"
+                                    "focus-visible:outline-offset-2"
+                                    "focus-visible:outline-black"])}
                "Search"]
-              [:a {:class (classes ["flex items-center gap-3 rounded-lg px-4 py-2 text-gray-700 hover:bg-gray-100"])}
+              [:a {:class (classes ["flex items-center gap-3 px-4 py-2 my-4"
+                                    "justify-center"
+                                    "px-3.5"
+                                    "py-2.5"
+                                    "text-sm"
+                                    "font-semibold"
+                                    "text-black"
+                                    "shadow-xs"
+                                    "outline-2"
+                                    "hover:outline-2"
+                                    "hover:outline-offset-2"
+                                    "hover:outline-black"
+                                    "focus-visible:outline-2"
+                                    "focus-visible:outline-offset-2"
+                                    "focus-visible:outline-black"])}
                "Chat"]]
              #_[:nav {:class (classes ["flex-1 px-3 space-y-1"])}]]
 
