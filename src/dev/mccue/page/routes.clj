@@ -40,7 +40,7 @@
   (if (environment/development?)
     (fn []
       (slurp (io/file "res/tailwind.css")))
-    (let [css (slurp (io/resource "tailwind.js"))]
+    (let [css (slurp (io/resource "tailwind.css"))]
       (constantly css))))
 
 (defn tailwind-css-handler
