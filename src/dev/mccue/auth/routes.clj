@@ -102,10 +102,10 @@
                                                "items-center"
                                                "p-7"
                                                "rounded-2xl"])}
-                (println (str user-info))
                 [:div
                  [:img
-                  {:class  (classes ["size-48"  "rounded-md"
+                  {:class  (classes ["size-48"
+                                     "rounded-md"
                                      "outline-4"
                                      "outline-offset-2"
                                      "outline-black"])
