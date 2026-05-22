@@ -7,7 +7,7 @@ COPY package*.json ./
 
 RUN npm ci
 
-RUN npx @tailwindcss/cli --optimize -i ../css/input.css -o ./res/tailwind.css
+RUN npx @tailwindcss/cli --optimize -i ./css/input.css -o ./res/tailwind.css
 
 FROM eclipse-temurin:26-jdk
 
