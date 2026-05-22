@@ -108,29 +108,29 @@
                                                    "focus-visible:outline-2"
                                                    "focus-visible:outline-offset-2"
                                                    "focus-visible:outline-black"])}
-                 "Logout"])]]]
+                 "Logout"])]
 
-           (when-let [user (:user request)]
-             (let [user-info (jsonquery/execute-one! db {:select [:id :profile_image_png_base64]
-                                                         :from   :identity.user
-                                                         :where [:= :id (:user/id user)]})]
-               [:div
-                {:class (page-helpers/classes ["flex"
-                                               "flex-col"
-                                               "items-center"
-                                               "p-7"
-                                               "rounded-2xl"])}
-                [:div
-                 [:img
-                  {:class  (classes ["size-48"
-                                     "rounded-md"
-                                     "outline-4"
-                                     "outline-offset-2"
-                                     "outline-black"])
-                   :src    (str "data:image/png;base64, " (:profile_image_png_base64 user-info))
-                   :width  64
-                   :height 64
-                   :style  "image-rendering: pixelated"}]]]))]))
+             (when-let [user (:user request)]
+               (let [user-info (jsonquery/execute-one! db {:select [:id :profile_image_png_base64]
+                                                           :from   :identity.user
+                                                           :where [:= :id (:user/id user)]})]
+                 [:div
+                  {:class (page-helpers/classes ["flex"
+                                                 "flex-col"
+                                                 "items-center"
+                                                 "p-7"
+                                                 "rounded-2xl"])}
+                  [:div
+                   [:img
+                    {:class  (classes ["size-48"
+                                       "rounded-md"
+                                       "outline-4"
+                                       "outline-offset-2"
+                                       "outline-black"])
+                     :src    (str "data:image/png;base64, " (:profile_image_png_base64 user-info))
+                     :width  64
+                     :height 64
+                     :style  "image-rendering: pixelated"}]]]))]]]))
 
 (defn routes
   [system]
