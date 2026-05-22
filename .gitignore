@@ -11,4 +11,5 @@ data
 migrations/environments/production.properties
 .env
 .idea/dataSources
-
+res/tailwind.css
+node_modules

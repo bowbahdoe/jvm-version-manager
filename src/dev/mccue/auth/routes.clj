@@ -63,20 +63,31 @@
            [:a {:href "/oauth2/github"} "Login with GitHub"]
            [:br]
            [:a {:href "/logout"} "Logout"]
-           [:ul
-            (for [user (jsonquery/execute! db {:select [:id :profile_image_png_base64]
-                                               :from   :identity.user})]
-              [:li [:img {:src (str "data:image/png;base64, " (:profile_image_png_base64 user))
-                          :width 64
-                          :height 64
-                          :style (page-helpers/css
-                                   ["margin: 4px"
-                                    "border: 2px solid black"
-                                    "border-radius: 2px"
 
-                                    "image-rendering: pixelated"
-                                    "padding: 4px"])}]
-               [:p (:id user)]])]]))
+           [:h1 {:class (page-helpers/classes ["text-3xl font-bold underline"])}
+            "Hello world!"]
+           (for [user (jsonquery/execute! db {:select [:id :profile_image_png_base64]
+                                              :from   :identity.user})]
+             [:div
+              {:class (page-helpers/classes ["flex"
+                                             "flex-col"
+                                             "items-center"
+                                             "p-7"
+                                             "rounded-2xl"])}
+              [:div
+               [:img
+                {:class "size-48 shadow-xl rounded-md"
+                 :src (str "data:image/png;base64, " (:profile_image_png_base64 user))
+                 :width 64
+                 :height 64
+                 :style "image-rendering: pixelated"}]]
+              [:div.flex.items-center
+               [:span.text-2xl.font-medium "Class Warfare"]
+               [:span.font-medium.text-sky-500 "The Anti-Patterns"]
+               [:span.flex.gap-2.font-medium.text-gray-600.dark:text-gray-400
+                [:span "No. 4"]
+                [:span "·"]
+                [:span "2025"]]]])]))
 
 (defn routes
   [system]

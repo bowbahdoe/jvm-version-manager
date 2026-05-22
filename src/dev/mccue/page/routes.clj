@@ -1,6 +1,7 @@
 (ns dev.mccue.page.routes
   (:require [clojure.java.io :as io]
-            [clj-commons.byte-streams :as bs]))
+            [clj-commons.byte-streams :as bs]
+            [dev.mccue.environment :as environment]))
 
 (def htmx-js (slurp (io/resource "htmx.js")))
 
@@ -35,6 +36,18 @@
    :headers {"Content-Type" "image/png"}
    :body    favicon})
 
+(def tailwind-css
+  (if (environment/development?)
+    (fn []
+      (slurp (io/file "res/tailwind.css")))
+    (let [css (slurp (io/resource "tailwind.js"))]
+      (constantly css))))
+
+(defn tailwind-js-handler
+  [_ _]
+  {:status  200
+   :headers {"Content-Type" "text/css"}
+   :body    (tailwind-css)})
 
 (defn routes
   [system]
@@ -42,4 +55,5 @@
    [["/favicon.ico" {:get {:handler (partial #'favicon-handler system)}}]
     ["/htmx.js" {:get {:handler (partial #'htmx-handler system)}}]
     ["/alpine.js" {:get {:handler (partial #'alpine-handler system)}}]
+    ["/tailwind.css" {:get {:handler (partial #'tailwind-js-handler system)}}]
     ["/force-graph.js" {:get {:handler (partial #'force-graph-handler system)}}]]])

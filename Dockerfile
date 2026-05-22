@@ -1,3 +1,7 @@
+FROM node:lts-alpine3.23 as tailwind
+
+RUN npx @tailwindcss/cli --optimize -i ./css/input.css -o ./res/tailwind.css
+
 FROM eclipse-temurin:26-jdk
 
 # Install curl
@@ -11,6 +15,7 @@ RUN ./linux-install.sh
 RUN rm linux-install.sh
 
 # Copy Project Files Over
+COPY --from=tailwind ./res/tailwind.css ./res/tailwind.css
 COPY ./src ./src
 COPY ./res ./res
 COPY ./jars ./jars

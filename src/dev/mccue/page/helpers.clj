@@ -29,6 +29,10 @@
   [classes]
   (string/join ";" classes))
 
+(defn classes
+  [classes]
+  (string/join " " classes))
+
 (defn page-response
   [& {:keys [title head body status]}]
   (hiccup-response
@@ -39,6 +43,7 @@
               [:script {:src "/htmx.js"}]
               [:script {:src "/alpine.js"
                         :defer true}]
+              [:link {:href "/tailwind.css" :rel "stylesheet"}]
               [:title title]
               head)]
            [:body {:style "font-family: monospace"} body]]))

@@ -20,3 +20,7 @@ migrate_up:
 # Reverts migrations
 migrate_down:
     cd migrations && migrate down
+
+# Compile Tailwind CSS
+tailwind_watch:
+    npx @tailwindcss/cli -i ./css/input.css -o ./res/tailwind.css --watch
