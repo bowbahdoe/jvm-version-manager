@@ -80,14 +80,7 @@
                  :src (str "data:image/png;base64, " (:profile_image_png_base64 user))
                  :width 64
                  :height 64
-                 :style "image-rendering: pixelated"}]]
-              [:div.flex.items-center
-               [:span.text-2xl.font-medium "Class Warfare"]
-               [:span.font-medium.text-sky-500 "The Anti-Patterns"]
-               [:span.flex.gap-2.font-medium.text-gray-600.dark:text-gray-400
-                [:span "No. 4"]
-                [:span "·"]
-                [:span "2025"]]]])]))
+                 :style "image-rendering: pixelated"}]]])]))
 
 (defn routes
   [system]
