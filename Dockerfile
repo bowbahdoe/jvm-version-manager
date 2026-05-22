@@ -1,6 +1,5 @@
 FROM node:lts-alpine3.23 as tailwind
 
-COPY . .
 
 WORKDIR /app
 COPY ./css ./css
