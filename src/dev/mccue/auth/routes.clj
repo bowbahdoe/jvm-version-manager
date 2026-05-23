@@ -287,8 +287,6 @@
     ["/oauth2/atproto/landing"]
     ["/oauth2/atproto/client-metadata.json"
      {:get (partial #'get-atproto-client-metadata-json-handler system)}]
-
-
     ["/not-oauth/atproto" {:get (partial #'get-atproto-handler system)
                            :post (partial #'post-atproto-handler system)}]]])
 
