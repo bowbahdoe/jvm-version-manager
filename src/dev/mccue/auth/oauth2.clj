@@ -55,7 +55,7 @@
 (defn- random-code-verifier []
   (base64url (random/base64 63)))
 
-(defn- make-launch-handler [{:keys [pkce?] :as profile}]
+(defn make-launch-handler [{:keys [pkce?] :as profile}]
   (fn handler
     ([{:keys [session] :or {session {}} :as request}]
      (let [state    (random-state)
@@ -158,7 +158,7 @@
                           (assoc-in [::access-tokens id] access-token)
                           (dissoc ::state ::code-verifier)))))
 
-(defn- make-redirect-handler
+(defn make-redirect-handler
   [{:keys [state-mismatch-handler no-auth-code-handler]
     :or   {state-mismatch-handler state-mismatch-handler
            no-auth-code-handler   no-auth-code-handler}
@@ -219,3 +219,11 @@
            ((:redirect-handler profile (make-redirect-handler profile))
             request respond raise)
            (handler (assoc-access-tokens request) respond raise)))))))
+
+(defn ->reitit-routes
+  [profiles]
+  {:pre [(every? valid-profile? (vals profiles))]}
+  (let [profiles  (for [[k v] profiles] (assoc v :id k))
+        launches  (into {} (map (juxt :launch-uri make-launch-handler)) profiles)
+        redirects (into {} (map (juxt parse-redirect-url make-redirect-handler)) profiles)]
+    (vec (concat launches redirects))))
