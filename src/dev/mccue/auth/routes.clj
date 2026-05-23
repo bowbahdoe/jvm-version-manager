@@ -7,15 +7,18 @@
             [dev.mccue.jsonquery :as jsonquery]
             [dev.mccue.middleware :as middleware]
             [dev.mccue.page.helpers :as page-helpers :refer [classes page-response]]
+            [hiccup2.core :as hiccup]
             [honey.sql :as sql]
             [next.jdbc :as jdbc]
-            [ring.middleware.oauth2 :as oauth2 :refer [wrap-oauth2]]
+            [dev.mccue.auth.oauth2 :as oauth2 :refer [wrap-oauth2]]
             [clj-http.client :as clj-http-client]
-            [ring.util.response :as response])
+            [ring.util.response :as response]
+            [ring.util.anti-forgery :as anti-forgery])
 
   (:import (dev.mccue.duke Duke Seed)
+           (java.net URI)
            (java.util Base64 Base64$Encoder Hashtable)
-           (javax.naming NamingEnumeration)
+           (javax.naming NameNotFoundException NamingEnumeration)
            (javax.naming.directory DirContext InitialDirContext Attributes Attribute)))
 
 
@@ -56,6 +59,7 @@
                                         {:headers {"Authorization" (str "Bearer " token)}})
           discord-user-info (get (cheshire/parse-string (:body response)) "user")
           discord-user-id (get discord-user-info "id")
+          discord-user-username (get discord-user-info "username")
           avatar-base64   (-> (Base64/getEncoder)
                               (Base64$Encoder/.encodeToString
                                 (:body (clj-http.client/get (str "https://cdn.discordapp.com/avatars/"
@@ -65,24 +69,120 @@
                                                                  ".png?size=32")
                                                             {:as :byte-array}))))]
       (jdbc/execute! db (sql/format
-                          {:insert-into :identity.user
-                           :columns     [:discord_user_id :profile_image_png_base64]
-                           :values      [[(str discord-user-id) avatar-base64]]
+                          {:insert-into :discord.linked_account
+                           :columns     [:user_id
+                                         :discord_user_id
+                                         :discord_username
+                                         :discord_profile_image_png_base64]
+                           :values      [[(:user/id (:user request))
+                                          (str discord-user-id)
+                                          discord-user-username
+                                          avatar-base64]]
+                           ;; TODO: Handle conflict when another user has the same discord account linked.
                            :on-conflict []
                            :do-nothing  true}))
-      (let [{:user/keys [id]} (jdbc/execute-one! db (sql/format
-                                                      {:select [:id]
-                                                       :from   :identity.user
-                                                       :where  [:= :discord_user_id (str discord-user-id)]}))]
-        (-> (response/redirect "/")
-            (assoc :session (-> (:session request)
-                                (dissoc ::oauth2/access-tokens)
-                                (assoc :user_id id))))))))
+      (-> (response/redirect "/")
+          (assoc :session (-> (:session request)
+                              (dissoc ::oauth2/access-tokens)))))))
 
 (defn get-logout-handler
   [_ _]
   (-> (response/redirect "/")
       (assoc :session nil)))
+
+
+(defn get-did-dns
+  [atproto-handle]
+  (try
+    (let [dir (InitialDirContext.
+                (doto (Hashtable.)
+                  (.put "java.naming.factory.initial",
+                        "com.sun.jndi.dns.DnsContextFactory")))
+          attrs (^[String String/1]
+                  DirContext/.getAttributes
+                  dir
+                  (str "_atproto." atproto-handle)
+                  (into-array String ["TXT"]))]
+
+      (when-let [txt (Attributes/.get attrs "TXT")]
+        (let [e (Attribute/.getAll txt)]
+          (loop []
+            (when (NamingEnumeration/.hasMore e)
+              (let [value (NamingEnumeration/.next e)]
+                (if (string/starts-with? value "did=")
+                  (string/replace-first value "did=" "")
+                  (recur))))))))
+    (catch NameNotFoundException _
+      nil)))
+
+(defn get-did-https
+  [atproto-handle]
+  (try (slurp (str "https://" atproto-handle "/.well-known/atproto-did"))
+       (catch Exception _ nil)))
+
+(defn get-did
+  [atproto-handle]
+  (or (get-did-dns atproto-handle)
+      (get-did-https atproto-handle)))
+
+(defn resolve-service-endpoint
+  [did]
+  (let [info (cheshire/parse-string-strict
+              (slurp (str "https://plc.directory/" did)))]
+    (get-in info ["service" 0 "serviceEndpoint"])))
+
+(defn resolve-did
+  [did]
+  (let [info (cheshire/parse-string-strict
+               (slurp (str "https://plc.directory/" did)))
+        service-endpoint (get-in info ["service" 0 "serviceEndpoint"])
+        service-info (cheshire/parse-string-strict
+                       (slurp (str service-endpoint "/.well-known/oauth-protected-resource")))
+        authorization-server (get-in service-info ["authorization_servers" 0])
+        authorization-server-description (cheshire/parse-string-strict
+                                           (slurp (str authorization-server
+                                                       "/.well-known/oauth-authorization-server")))]
+    authorization-server-description))
+
+(defn get-atproto-handler
+  [system request]
+  (page-response
+    :body [:form {:action "/not-oauth/atproto"
+                  :method "POST"}
+           (hiccup/raw (anti-forgery/anti-forgery-field))
+           [:label {:for "handle"} "Handle"]
+           [:input {:type "text" :id "handle" :name "handle"}]
+           [:label {:for "password"} "Password"]
+           [:input {:type "password" :id "password" :name "password"}]
+           [:input {:type "submit"}]]))
+
+(defn post-atproto-handler
+  [{:system/keys [db]} request]
+  (let [{:strs [handle password]} (:form-params request)
+        did                       (get-did handle)
+        service-endpoint          (resolve-service-endpoint did)
+        create-session-endpoint   (str (.resolve (URI/create service-endpoint)
+                                                 "/xrpc/com.atproto.server.createSession/"))]
+    (let [{:strs [did]}  (cheshire/parse-string
+                           (:body (clj-http-client/post create-session-endpoint
+                                                        {:body (cheshire/generate-string
+                                                                 {:identifier handle
+                                                                  :password   password})
+                                                         :headers {"Content-Type" "application/json"}})))]
+      (jdbc/execute! db (sql/format
+                          {:insert-into :identity.user
+                           :columns     [:atproto_did :profile_image_png_base64]
+                           :values      [[did (duke/duke->png-base64 (Duke. (Seed. (hash did))))]]
+                           :on-conflict []
+                           :do-nothing  true}))
+      (let [{:user/keys [id]} (jdbc/execute-one! db (sql/format
+                                                      {:select [:id]
+                                                       :from   :identity.user
+                                                       :where  [:= :atproto_did did]}))]
+        (-> (response/redirect "/")
+            (assoc :session (-> (:session request)
+                                (assoc :user_id id))))))))
+
 
 (defn index-handler
   [{:system/keys [db]} request]
@@ -163,6 +263,22 @@
 
              [:div {:class "mt-10 flex flex-row items-center justify-center gap-x-6 gap-y-6"}
               (when-not (:user request)
+                [:a {:href  "/not-oauth/atproto"
+                     :class (classes ["rounded-md"
+                                      "bg-black"
+                                      "px-3.5"
+                                      "py-2.5"
+                                      "text-sm"
+                                      "font-semibold"
+                                      "text-white"
+                                      "shadow-xs"
+                                      "hover:outline-2"
+                                      "hover:outline-offset-2"
+                                      "hover:outline-black"
+                                      "focus-visible:outline-2"
+                                      "focus-visible:outline-offset-2"
+                                      "focus-visible:outline-black"])} "@Login"])
+              (when-not (:user request)
                 [:a {:href  "/oauth2/github"
                      :class (classes ["rounded-md"
                                       "bg-black"
@@ -178,7 +294,7 @@
                                       "focus-visible:outline-2"
                                       "focus-visible:outline-offset-2"
                                       "focus-visible:outline-black"])} "Login with GitHub"])
-              (when-not (:user request)
+              (when (:user request)
                 [:a {:href  "/oauth2/discord"
                      :class (classes ["rounded-md"
                                       "bg-black"
@@ -213,26 +329,53 @@
                  "Logout"])]
 
              (when-let [user (:user request)]
-               (let [user-info (jsonquery/execute-one! db {:select [:id :profile_image_png_base64]
+               (let [user-info (jsonquery/execute-one! db {:select [:id :profile_image_png_base64
+                                                                    [:discord_linked_accounts
+                                                                     {:select [:discord_username
+                                                                               :discord_profile_image_png_base64]
+                                                                      :from :discord.linked_account
+                                                                      :join-on [:id :user_id]}]]
                                                            :from   :identity.user
                                                            :where [:= :id (:user/id user)]})]
-                 [:div
-                  {:class (page-helpers/classes ["flex"
-                                                 "flex-col"
-                                                 "items-center"
-                                                 "p-7"
-                                                 "rounded-2xl"])}
-                  [:div
-                   [:img
-                    {:class  (classes ["size-48"
-                                       "rounded-md"
-                                       "outline-4"
-                                       "outline-offset-2"
-                                       "outline-black"])
-                     :src    (str "data:image/png;base64, " (:profile_image_png_base64 user-info))
-                     :width  64
-                     :height 64
-                     :style  "image-rendering: pixelated"}]]]))]]]))
+                 (list
+                   [:div
+                    {:class (page-helpers/classes ["flex"
+                                                   "flex-col"
+                                                   "items-center"
+                                                   "p-7"
+                                                   "rounded-2xl"])}
+                    [:div
+                     [:img
+                      {:class  (classes ["size-48"
+                                         "rounded-md"
+                                         "outline-4"
+                                         "outline-offset-2"
+                                         "outline-black"])
+                       :src    (str "data:image/png;base64, " (:profile_image_png_base64 user-info))
+                       :width  64
+                       :height 64
+                       :style  "image-rendering: pixelated"}]]]
+                   (for [account (:discord_linked_accounts user-info)]
+                     [:div
+                      {:class (page-helpers/classes ["flex"
+                                                     "flex-col"
+                                                     "items-center"
+                                                     "p-7"
+                                                     "rounded-2xl"])}
+                      [:div
+                       [:p (:discord_username account)]
+                       [:img
+                        {:class  (classes ["size-48"
+                                           "rounded-md"
+                                           "outline-4"
+                                           "outline-offset-2"
+                                           "outline-black"])
+                         :src    (str "data:image/png;base64, " (:discord_profile_image_png_base64 account))
+                         :width  64
+                         :height 64
+                         :style  "image-rendering: pixelated"}]]]))))]]]))
+
+
 
 (defn routes
   [system]
@@ -242,7 +385,8 @@
     (let [discord-launch-uri "/oauth2/discord"
           discord-redirect-uri "/oauth2/discord/callback"
           discord-landing-uri "/oauth2/discord/landing"]
-      ["" {:middleware [#(wrap-oauth2 % {:discord
+      ["" {:middleware [(middleware/require-authenticated-user-middleware system)
+                        #(wrap-oauth2 % {:discord
                                          {:authorize-uri    "https://discord.com/oauth2/authorize"
                                           :access-token-uri "https://discord.com/api/oauth2/token"
                                           :client-id        (System/getenv "DISCORD_CLIENT_ID")
@@ -259,7 +403,8 @@
     (let [github-launch-uri "/oauth2/github"
           github-redirect-uri "/oauth2/github/callback"
           github-landing-uri "/oauth2/github/landing"]
-      ["" {:middleware [#(wrap-oauth2 % {:github
+      ["" {:middleware [(middleware/require-authenticated-user-middleware system)
+                        #(wrap-oauth2 % {:github
                                          {:authorize-uri    "https://github.com/login/oauth/authorize"
                                           :access-token-uri "https://github.com/login/oauth/access_token"
                                           :client-id        (System/getenv "GITHUB_CLIENT_ID")
@@ -270,40 +415,9 @@
                                           :landing-uri      github-landing-uri}})]}
        [[github-launch-uri {:get #'dummy-route-handler}]
         [github-redirect-uri {:get #'dummy-route-handler}]
-        [github-landing-uri {:get (partial #'get-github-landing-handler system)}]]])]])
+        [github-landing-uri {:get (partial #'get-github-landing-handler system)}]]])
+
+    ["/not-oauth/atproto" {:get (partial #'get-atproto-handler system)
+                           :post (partial #'post-atproto-handler system)}]]])
 
 
-
-
-(defn get-did
-  [atproto-handle]
-  (let [dir (InitialDirContext.
-              (doto (Hashtable.)
-                (.put "java.naming.factory.initial",
-                      "com.sun.jndi.dns.DnsContextFactory")))
-        attrs (^[String String/1]
-                DirContext/.getAttributes
-                dir
-                (str "_atproto." atproto-handle)
-                (into-array String ["TXT"]))
-        txt (Attributes/.get attrs "TXT")
-        e (Attribute/.getAll txt)]
-    (loop []
-      (when (NamingEnumeration/.hasMore e)
-        (let [value (NamingEnumeration/.next e)]
-          (if (string/starts-with? value "did=")
-            (string/replace-first value "did=" "")
-            (recur)))))))
-
-(defn resolve-did
-  [did]
-  (let [info (cheshire/parse-string-strict
-               (slurp (str "https://plc.directory/" did)))
-        service-endpoint (get-in info ["service" 0 "serviceEndpoint"])
-        service-info (cheshire/parse-string-strict
-                       (slurp (str service-endpoint "/.well-known/oauth-protected-resource")))
-        authorization-server (get-in service-info ["authorization_servers" 0])
-        authorization-server-description (cheshire/parse-string-strict
-                                           (slurp (str authorization-server
-                                                       "/.well-known/oauth-authorization-server")))]
-    authorization-server-description))

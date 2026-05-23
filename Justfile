@@ -25,3 +25,6 @@ migrate_down:
 # Compile Tailwind CSS
 tailwind_watch:
     npx @tailwindcss/cli -i ./css/input.css -o ./res/tailwind.css --watch
+
+test:
+    clojure -A:test -M -m kaocha.runner
