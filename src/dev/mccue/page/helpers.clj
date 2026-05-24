@@ -25,13 +25,19 @@
    "height: fit-content"
    "padding: 4px"])
 
-(defn css
-  [classes]
-  (string/join ";" classes))
+(defmacro css
+  [styles]
+  (if (and (vector? styles)
+           (every? string? styles))
+    (string/join ";" styles)
+    `(string/join ";" ~styles)))
 
-(defn classes
+(defmacro classes
   [classes]
-  (string/join " " classes))
+  (if (and (vector? classes)
+           (every? string? classes))
+    (string/join " " classes)
+    `(string/join " " ~classes)))
 
 (defn page-response
   [& {:keys [title head body status]}]

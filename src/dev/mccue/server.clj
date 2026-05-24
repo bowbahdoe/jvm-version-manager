@@ -5,6 +5,7 @@
             [dev.mccue.index.routes :as index-routes]
             [dev.mccue.page.helpers :as page-helpers]
             [dev.mccue.page.routes :as page-routes]
+            [dev.mccue.profile.routes :as profile-routes]
             [dev.mccue.qa.routes :as qa-routes]
             [dev.mccue.repository.routes :as repository-routes]
             [hiccup2.core :as hiccup]
@@ -21,6 +22,7 @@
                         (oauth-routes/routes system)
                         (index-routes/routes system)
                         (page-routes/routes system)
+                        (profile-routes/routes system)
                         (qa-routes/routes system)
                         (repository-routes/routes system)]])
                     #'page-helpers/_404-page-response)]
