@@ -1,15 +1,14 @@
 (ns dev.mccue.repository.routes
   (:require [cheshire.core :as cheshire]
+            [clojure.pprint :as pprint]
             [clojure.string :as string]
             [dev.mccue.jsonquery :as jsonquery]
             [dev.mccue.middleware :as middleware]
-            [next.jdbc :as jdbc]
+            [dev.mccue.page.helpers :as page-helpers]
+            [dev.mccue.sidebar.components :as sidebar-components]
             [hiccup2.core :as hiccup]
-            [clojure.pprint :as pprint]
-            [reitit.ring.middleware.exception :as reitit-exception]
-            [reitit.ring.middleware.parameters :as reitit-parameters]
             [honey.sql :as h]
-            [dev.mccue.page.helpers :as page-helpers])
+            [next.jdbc :as jdbc])
   (:import (java.lang.module ModuleDescriptor$Version)))
 
 
@@ -73,34 +72,36 @@
   [system request]
   (page-helpers/page-response
     :body
-    (list
-      [:div
-       {:id "search"}
-       [:label {:for "module-name-input"} "Module Name"]
-       [:br]
-       [:input {:id         "module-name-input"
-                :name       "module-name-input"
-                :type       "text"
-                :hx-swap    "innerHTML"
-                :hx-trigger "keyup changed delay:250ms"
-                :hx-target  "#search-results"
-                :hx-post    "/search"}]
-       [:br]
-       [:label {:for "provides-service-input"} "Provides Service"]
-       [:br]
-       [:input {:id         "provides-service-input"
-                :name       "provides-service-input"
-                :type       "text"
-                :hx-swap    "innerHTML"
-                :hx-trigger "keyup changed delay:250ms"
-                :hx-target  "#search-results"
-                :hx-post    "/search"}]
-       [:br]
-       [:input {:id   "windows-amd64"
-                :type "checkbox"}]
+    (sidebar-components/sidebar
+      request
+      (list
+        [:div
+         {:id "search"}
+         [:label {:for "module-name-input"} "Module Name"]
+         [:br]
+         [:input {:id         "module-name-input"
+                  :name       "module-name-input"
+                  :type       "text"
+                  :hx-swap    "innerHTML"
+                  :hx-trigger "keyup changed delay:250ms"
+                  :hx-target  "#search-results"
+                  :hx-post    "/search"}]
+         [:br]
+         [:label {:for "provides-service-input"} "Provides Service"]
+         [:br]
+         [:input {:id         "provides-service-input"
+                  :name       "provides-service-input"
+                  :type       "text"
+                  :hx-swap    "innerHTML"
+                  :hx-trigger "keyup changed delay:250ms"
+                  :hx-target  "#search-results"
+                  :hx-post    "/search"}]
+         [:br]
+         [:input {:id   "windows-amd64"
+                  :type "checkbox"}]
 
 
-       [:div {:id "search-results"}]])))
+         [:div {:id "search-results"}]]))))
 
 (defn post-search-handler
   [{:system/keys [db]} request]

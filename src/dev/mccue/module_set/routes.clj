@@ -5,6 +5,7 @@
             [dev.mccue.middleware :as middleware]
             [honey.sql :as sql]
             [next.jdbc :as jdbc]
+            [dev.mccue.sidebar.components :as sidebar-components]
             [reitit.ring.middleware.parameters :as reitit-parameters])
   (:import (java.util UUID)
            (com.fasterxml.uuid Generators)))
@@ -57,10 +58,13 @@
 
 (defn get-module-set-create
   [{:system/keys [db]} request]
+  (throw (Exception. "aBC"))
   (page-helpers/page-response
     :title "Module Set Editor"
-    :body [:code [:pre (with-out-str
-                         (clojure.pprint/pprint request))]]))
+    :body (sidebar-components/sidebar
+            request
+            [:code [:pre (with-out-str
+                           (clojure.pprint/pprint request))]])))
 
 (defn routes
   [system]
@@ -79,13 +83,14 @@
                                         :from :repository.module
                                         :where [:ilike :name "%dev.mccue%"]}))
         module-set-id  (.generate (Generators/timeBasedEpochGenerator))]
-    (jdbc/with-transaction [t (user/db)]
-      (jdbc/execute! t (sql/format
-                         {:insert-into :repository.module_set
-                          :columns [:id]
-                          :values [[module-set-id]]}))
-      (jdbc/execute! t (sql/format
-                         {:insert-into :repository.module_set_element
-                          :columns [:module_set_id :module_id]
-                          :values (mapv (juxt (constantly module-set-id) :module/id)
-                                        mccue-sets)})))))
+    (when (seq mccue-sets)
+      (jdbc/with-transaction [t (user/db)]
+        (jdbc/execute! t (sql/format
+                           {:insert-into :repository.module_set
+                            :columns [:id]
+                            :values [[module-set-id]]}))
+        (jdbc/execute! t (sql/format
+                           {:insert-into :repository.module_set_element
+                            :columns [:module_set_id :module_id]
+                            :values (mapv (juxt (constantly module-set-id) :module/id)
+                                          mccue-sets)}))))))

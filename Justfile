@@ -26,5 +26,10 @@ migrate_down:
 tailwind_watch:
     npx @tailwindcss/cli -i ./css/input.css -o ./res/tailwind.css --watch
 
+# Run tests
 test:
     clojure -A:test -M -m kaocha.runner
+
+# Start a REPL to connect to for development
+nrepl:
+    export $(cat .env | xargs) && clojure -A:dev -M -m nrepl.cmdline

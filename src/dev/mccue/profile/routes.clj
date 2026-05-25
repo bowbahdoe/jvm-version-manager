@@ -29,22 +29,7 @@
                                      "focus-visible:outline-offset-2"
                                      "focus-visible:outline-black"])} "@Login"])
 
-             (when-not (:user request)
-               [:a {:href  "/oauth2/atproto/launch/mccue.dev"
-                    :class (classes ["rounded-md"
-                                     "bg-black"
-                                     "px-3.5"
-                                     "py-2.5"
-                                     "text-sm"
-                                     "font-semibold"
-                                     "text-white"
-                                     "shadow-xs"
-                                     "hover:outline-2"
-                                     "hover:outline-offset-2"
-                                     "hover:outline-black"
-                                     "focus-visible:outline-2"
-                                     "focus-visible:outline-offset-2"
-                                     "focus-visible:outline-black"])} "@Login (OAuth)"])
+
              (when (:user request)
                [:a {:href  "/oauth2/github"
                     :class (classes ["rounded-md"
@@ -168,6 +153,5 @@
   ["" {:middleware (middleware/standard-html-route-middleware system)}
    ["/profile" {:get (partial #'get-profile-handler system)}]
    ["/ask" {:get (partial #'placeholder-handler system)}]
-   ["/chat" {:get (partial #'placeholder-handler system)}]
    ["/answer" {:get (partial #'placeholder-handler system)}]
    #_["/search" {:get (partial #'get-profile-handler system)}]])

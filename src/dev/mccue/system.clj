@@ -5,6 +5,7 @@
             [dev.mccue.server :as server]
             [dev.mccue.workers :as workers]
             [dev.mccue.session-store :as session-store]
+            [dev.mccue.jetstream :as jetstream]
             [next.jdbc :as jdbc]
             [next.jdbc.connection :as connection]
             [proletarian.protocols :as protocols]
@@ -70,6 +71,7 @@
     ::worker/job-worker-error :error
     ::worker/polling-for-jobs :debug
     :proletarian.retry/not-retrying :error
+    :proletarian.worker/job-finished :debug
     :info))
 
 (defn logger
@@ -98,6 +100,14 @@
   [{:system/keys [db]}]
   (session-store/->JDBCSessionStore db))
 
+(defn start-jetstream-websocket-client!
+  [system]
+  (jetstream/start-jetstream-websocket-client! system))
+
+(defn stop-jetstream-websocket-client!
+  [jetstream-websocket-client]
+  (jetstream/stop-jetstream-websocket-client! jetstream-websocket-client))
+
 (defn start!
   []
   (let [db (start-db! {})
@@ -105,16 +115,19 @@
         session-store (start-session-store! {:system/db db})
         server (start-server! {:system/db db
                                :system/session-store session-store})
+        jetstream-websocket-client (start-jetstream-websocket-client! {:system/db db})
         worker (start-worker! {:system/db db})]
     {:system/db db
      :system/admin-db admin-db
      :system/session-store session-store
      :system/server server
-     :system/worker worker}))
+     :system/worker worker
+     :system/jetstream-websocket-client jetstream-websocket-client}))
 
 (defn stop!
-  [{:system/keys [server worker db]}]
+  [{:system/keys [server worker db jetstream-websocket-client]}]
   (stop-worker! worker)
+  (stop-jetstream-websocket-client! jetstream-websocket-client)
   (stop-server! server)
   (stop-admin-db! db)
   (stop-db! db))

@@ -1,7 +1,10 @@
 (ns dev.mccue.server
-  (:require [dev.mccue.middleware :as middleware]
+  (:require [clojure.tools.logging :as log]
+            [dev.mccue.environment :as environment]
+            [dev.mccue.middleware :as middleware]
             [dev.mccue.module-set.routes :as module-set-routes]
-            [dev.mccue.auth.routes :as oauth-routes]
+            [dev.mccue.auth.routes :as auth-routes]
+            [dev.mccue.chat.routes :as chat-routes]
             [dev.mccue.index.routes :as index-routes]
             [dev.mccue.page.helpers :as page-helpers]
             [dev.mccue.page.routes :as page-routes]
@@ -19,7 +22,8 @@
                     (reitit-ring/router
                       ["" {:middleware [middleware/log-request-middleware]}
                        [(module-set-routes/routes system)
-                        (oauth-routes/routes system)
+                        (auth-routes/routes system)
+                        (chat-routes/routes system)
                         (index-routes/routes system)
                         (page-routes/routes system)
                         (profile-routes/routes system)
@@ -30,16 +34,19 @@
        [request]
        (try
          (handler' request)
-         (catch Exception e
-           {:status 500
-            :headers {"Content-Type" "text/html"}
-            :body (str
-                    (hiccup/html
-                      [:code
-                       [:pre
-                        (let [sw (StringWriter.)]
-                          (.printStackTrace e (PrintWriter. sw))
-                          (.toString sw))]]))})))))
+         (catch Throwable t
+           (log/error t "unhandled exception")
+           (if (environment/development?)
+             {:status 500
+              :headers {"Content-Type" "text/html"}
+              :body (str
+                      (hiccup/html
+                        [:code
+                         [:pre
+                          (let [sw (StringWriter.)]
+                            (.printStackTrace t (PrintWriter. sw))
+                            (.toString sw))]]))}
+             (page-helpers/_500-page-response)))))))
 
   ([system request]
    ((handler system) request)))

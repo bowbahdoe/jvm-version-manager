@@ -195,6 +195,34 @@
             (assoc :session (-> (:session request)
                                 (assoc :user_id id))))))))
 
+(defn atproto-client-doc
+  [& {:keys [redirect_uris]}]
+  {"application_type" "web",
+   "client_name" "Example Browser App",
+   "dpop_bound_access_tokens" true,
+   "grant_types" ["authorization_code", "refresh_token"],
+   "redirect_uris" redirect_uris,
+   "response_types" ["code"],
+   "scope" "atproto transition:generic",
+   "token_endpoint_auth_method" "none"})
+
+
+(defn get-atproto-client-metadata-json-handler
+  [system request]
+  {:status 200
+   :headers {"Content-Type" "application/json"}
+   :body (cheshire/generate-string
+           {"client_id"   (str "https://" (get-in request [:headers "host"]))
+
+            "application_type" "web",
+            "client_name" "Example Browser App",
+            "dpop_bound_access_tokens" true,
+            "grant_types" ["authorization_code", "refresh_token"],
+            "redirect_uris" ["http://127.0.0.1:8999/oauth2/atproto/callback"],
+            "response_types" ["code"],
+            "scope" "atproto transition:generic",
+            "token_endpoint_auth_method" "none"})})
+
 (defn get-atproto-launch-handler
   [system request]
   (let [handle                           (get-in request [:path-params :handle])
@@ -205,10 +233,19 @@
         launch-handler                   (oauth2/make-launch-handler
                                            {:authorize-uri    authorization_endpoint
                                             :access-token-uri token_endpoint
-                                            :client-id        (str (if (environment/production?)
-                                                                     (str "https://" (get-in request [:headers "host"]))
-                                                                     "http://127.0.0.1:8999")
-                                                                   "/oauth2/atproto/client-metadata.json")
+                                            :client-id        (if (environment/production?)
+                                                                (str "https://" (get-in request [:headers "host"])
+                                                                     "/oauth2/atproto/client-metadata.json")
+                                                                (get
+                                                                  (cheshire/parse-string
+                                                                    (:body
+                                                                      (clj-http.client/post
+                                                                        "https://cimd-service.fly.dev/clients"
+                                                                        {:body (cheshire/generate-string
+                                                                                 (atproto-client-doc
+                                                                                   :redirect-uris
+                                                                                   ["http://127.0.0.1:8999/oauth2/atproto/callback"]))})))
+                                                                  "client_id"))
                                             :client-secret    nil
                                             :scopes           ["atproto" "transition:generic"]
                                             :launch-uri       (:uri request)
@@ -221,25 +258,7 @@
                                             :pkce?            true})]
     (launch-handler request)))
 
-(defn get-atproto-client-metadata-json-handler
-  [system request]
-  {:status 200
-   :headers {"Content-Type" "application/json"}
-   :body (cheshire/generate-string
-           (doto {"client_id"   (str (if (environment/production?)
-                                       "https://"
-                                       "http://")
-                                     (get-in request [:headers "host"])
-                                     (:uri request))
-                  "application_type" "web",
-                  "client_name" "Example Browser App",
-                  "dpop_bound_access_tokens" true,
-                  "grant_types" ["authorization_code", "refresh_token"],
-                  "redirect_uris" ["https://app.example.com/oauth/callback"],
-                  "response_types" ["code"],
-                  "scope" "atproto transition:generic",
-                  "token_endpoint_auth_method" "none"}
-             clojure.pprint/pprint))})
+
 
 
 

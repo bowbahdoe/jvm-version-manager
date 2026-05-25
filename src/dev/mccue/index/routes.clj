@@ -11,7 +11,22 @@
     :title "ALL USERS"
     :body (sidebar-components/sidebar
             request
-            [:p "..."])))
+            (when-not (:user request)
+              [:a {:href  "/oauth2/atproto/launch/mccue.dev"
+                   :class (classes ["rounded-md"
+                                    "bg-black"
+                                    "px-3.5"
+                                    "py-2.5"
+                                    "text-sm"
+                                    "font-semibold"
+                                    "text-white"
+                                    "shadow-xs"
+                                    "hover:outline-2"
+                                    "hover:outline-offset-2"
+                                    "hover:outline-black"
+                                    "focus-visible:outline-2"
+                                    "focus-visible:outline-offset-2"
+                                    "focus-visible:outline-black"])} "@Login (OAuth)"]))))
 
 
 (defn routes

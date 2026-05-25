@@ -38,3 +38,6 @@
 (defn split-classes
   [str]
   (list 'classes (vec (string/split str #" "))))
+
+(defn -main
+  [& args])

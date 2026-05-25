@@ -20,8 +20,9 @@
         com.fasterxml.uuid/java-uuid-generator {:mvn/version "5.1.1"}
         ring/ring-defaults                     {:mvn/version "0.7.0"}
         org.clj-commons/byte-streams           {:mvn/version "0.3.4"}
-        #_#_com.cognitect/transit-clj              {:mvn/version "1.1.357"}
-        dev.mccue/duke {:local/root "jars/duke-2025.11.09-uber.jar"}}
+        org.java-websocket/Java-WebSocket      {:mvn/version "1.6.0"}
+        nrepl/nrepl                            {:mvn/version "1.7.0"}
+        dev.mccue/duke                         {:local/root "jars/duke-2025.11.09-uber.jar"}}
  :paths ["src" "res"]
  :aliases {:dev   {:extra-paths ["dev"]
                    :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.10.13"}}}
