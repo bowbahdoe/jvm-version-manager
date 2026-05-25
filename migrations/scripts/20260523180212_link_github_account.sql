@@ -14,11 +14,10 @@ CREATE TABLE github.linked_account
     github_profile_image_png_base64 text
 );
 
-ALTER TABLE identity."user"
-    DROP COLUMN github_user_id;
-
 -- //@UNDO
-DROP SCHEMA discord;
+
+DROP TABLE github.linked_account;
+DROP SCHEMA github;
 
 
 

@@ -29,7 +29,7 @@
                                     (conj "bg-yellow-200")))}
 
         "JVM"]
-       
+
        [:p {:class (classes ["text-lg" "font-bold" "text-center" "mt-4"])}
         "Community"]
        [:a {:href  "/ask"

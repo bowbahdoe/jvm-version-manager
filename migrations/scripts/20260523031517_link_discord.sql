@@ -18,4 +18,6 @@ ALTER TABLE identity."user"
     DROP COLUMN discord_user_id;
 
 -- //@UNDO
+
+DROP TABLE discord.linked_account;
 DROP SCHEMA discord;

@@ -16,9 +16,9 @@ CREATE INDEX module_hash_module_id_idx
 -- //@UNDO
 -- SQL to undo the change goes here.
 
-DROP INDEX module_exports_module_id_idx;
-DROP INDEX module_requires_module_id_idx;
-DROP INDEX module_provides_module_id_idx;
-DROP INDEX module_uses_module_id_idx;
-DROP INDEX module_package_module_id_idx;
-DROP INDEX module_package_module_id_idx;
+DROP INDEX repository.module_hash_module_id_idx;
+DROP INDEX repository.module_package_module_id_idx;
+DROP INDEX repository.module_uses_module_id_idx;
+DROP INDEX repository.module_provides_module_id_idx;
+DROP INDEX repository.module_requires_module_id_idx;
+DROP INDEX repository.module_exports_module_id_idx;

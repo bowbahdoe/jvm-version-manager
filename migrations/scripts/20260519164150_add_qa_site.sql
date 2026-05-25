@@ -53,8 +53,9 @@ CREATE TABLE qa.question
 (
     id                         uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
     asked_by_user_id           uuid        not null,
-    asked_on_behalf_of_user_id uuid        not null,
-    contents                   text        not null,
+    asked_on_behalf_of_user_id uuid,
+    title                      text        not null,
+    message                    text        not null default '',
     created_at                 timestamptz not null default now(),
     updated_at                 timestamptz not null default now()
 );

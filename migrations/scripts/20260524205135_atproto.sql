@@ -32,8 +32,8 @@ EXECUTE PROCEDURE atproto_jetstream_event_processEvent_insert_function();
 
 
 -- //@UNDO
-DROP TRIGGER identity_user_genProfileImage_insert_trigger ON identity.user;
-DROP FUNCTION identity_user_genProfileImage_insert_function;
+DROP TRIGGER atproto_jetstream_event_processEvent_insert_trigger ON atproto.jetstream_event;
+DROP FUNCTION atproto_jetstream_event_processEvent_insert_function;
 
 
 
