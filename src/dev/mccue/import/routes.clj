@@ -35,7 +35,6 @@
   (let [result (-> (clj-http-client/get
                      "https://search.maven.org/solrsearch/select"
                      {:query-params {"q" (:query (:params request))
-                                     "rows" 20
                                      "wt" "json"}})
                    (:body)
                    (cheshire/parse-string))]
@@ -43,9 +42,13 @@
     {:status 200
      :body (str
              (hiccup/html
-               [:code [:pre
-                       (with-out-str
-                         (clojure.pprint/pprint result))]]))}))
+               (for [artifact (get-in result ["response" "docs"])]
+                 #_[:code [:pre
+                           (with-out-str
+                             (clojure.pprint/pprint artifact))]]
+                 [:p (get artifact "id") "@" (get artifact "latestVersion")])))}))
+
+
 
 (defn routes
   [system]
