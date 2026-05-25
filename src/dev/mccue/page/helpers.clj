@@ -30,14 +30,18 @@
   (if (and (vector? styles)
            (every? string? styles))
     (string/join ";" styles)
-    `(string/join ";" ~styles)))
+    (if (string? styles)
+      styles
+      `(string/join ";" ~styles))))
 
 (defmacro classes
   [classes]
   (if (and (vector? classes)
            (every? string? classes))
     (string/join " " classes)
-    `(string/join " " ~classes)))
+    (if (string? classes)
+      classes
+      `(string/join " " ~classes))))
 
 (defn page-response
   [& {:keys [title head body status]}]

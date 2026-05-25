@@ -11,8 +11,25 @@
                               "flex"
                               "mx-2"
                               "h-full"])}
-       [:p {:class (classes ["text-md" "font-bold" "text-center" "outline-2" "border-4" "mb-3" "mt-3"])}
-        "JVM Community Site"]
+       [:a {:href "/"
+            :class (classes (cond-> ["text-lg"
+                                     "font-bold"
+                                     "text-center"
+                                     "outline-2"
+                                     "border-3"
+                                     "mb-3"
+                                     "mt-3"
+                                     "max-w-max"
+                                     "px-5"
+                                     "self-center"
+
+                                     "hover:bg-yellow-200"
+                                     "focus-visible:bg-yellow-200"]
+                                    (= (:uri request) "/")
+                                    (conj "bg-yellow-200")))}
+
+        "JVM"]
+       
        [:p {:class (classes ["text-lg" "font-bold" "text-center" "mt-4"])}
         "Community"]
        [:a {:href  "/ask"
@@ -29,7 +46,11 @@
                                "hover:outline-black"
                                "focus-visible:outline-2"
                                "focus-visible:outline-offset-2"
-                               "focus-visible:outline-black"]
+                               "focus-visible:outline-black"
+
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
+
                               (= uri "/ask")
                               (conj "bg-yellow-200")))}
         "Ask"]
@@ -47,7 +68,10 @@
                                "hover:outline-black"
                                "focus-visible:outline-2"
                                "focus-visible:outline-offset-2"
-                               "focus-visible:outline-black"]
+                               "focus-visible:outline-black"
+
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
                               (= uri "/answer")
                               (conj "bg-yellow-200")))}
         "Answer"]
@@ -65,10 +89,36 @@
                                "hover:outline-black"
                                "focus-visible:outline-2"
                                "focus-visible:outline-offset-2"
-                               "focus-visible:outline-black"]
+                               "focus-visible:outline-black"
+
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
                               (= uri "/chat")
                               (conj "bg-yellow-200")))}
         "Chat"]
+
+       [:a {:href  "/archives"
+            :class (classes (cond->
+                              ["flex items-center gap-1 px-4 py-2 my-2"
+                               "justify-center"
+                               "text-sm"
+                               "font-semibold"
+                               "text-black"
+                               "shadow-xs"
+                               "outline-2"
+                               "hover:outline-2"
+                               "hover:outline-offset-2"
+                               "hover:outline-black"
+                               "focus-visible:outline-2"
+                               "focus-visible:outline-offset-2"
+                               "focus-visible:outline-black"
+
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
+                              (= uri "/archives")
+                              (conj "bg-yellow-200")))}
+        "Archives"]
+
 
        [:p {:class (classes ["text-lg" "font-bold" "text-center" "mt-4"])}
         "Libraries"]
@@ -87,7 +137,10 @@
                                "hover:outline-black"
                                "focus-visible:outline-2"
                                "focus-visible:outline-offset-2"
-                               "focus-visible:outline-black"]
+                               "focus-visible:outline-black"
+
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
                               (= uri "/search")
                               (conj "bg-yellow-200")))}
         "Search"]
@@ -106,7 +159,10 @@
                                "hover:outline-black"
                                "focus-visible:outline-2"
                                "focus-visible:outline-offset-2"
-                               "focus-visible:outline-black"]
+                               "focus-visible:outline-black"
+
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
                               (= uri "/consume")
                               (conj "bg-yellow-200")))}
         "Consume"]
@@ -125,7 +181,10 @@
                                "hover:outline-black"
                                "focus-visible:outline-2"
                                "focus-visible:outline-offset-2"
-                               "focus-visible:outline-black"]
+                               "focus-visible:outline-black"
+
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
                               (= uri "/publish")
                               (conj "bg-yellow-200")))}
         "Publish"]
@@ -147,7 +206,10 @@
                                "hover:outline-black"
                                "focus-visible:outline-2"
                                "focus-visible:outline-offset-2"
-                               "focus-visible:outline-black"]
+                               "focus-visible:outline-black"
+
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
                               (= uri "/jobs")
                               (conj "bg-yellow-200")))}
         "Jobs"]
@@ -166,7 +228,10 @@
                                "hover:outline-black"
                                "focus-visible:outline-2"
                                "focus-visible:outline-offset-2"
-                               "focus-visible:outline-black"]
+                               "focus-visible:outline-black"
+
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
                               (= uri "/interview_prep")
                               (conj "bg-yellow-200")))}
         "Interviews"]
@@ -174,7 +239,6 @@
        [:div {:class "grow"}]
 
        (when user
-         (println uri)
          (list
            [:a {:href  "/profile"
                 :class (classes (cond->
@@ -190,7 +254,10 @@
                                    "hover:outline-black"
                                    "focus-visible:outline-2"
                                    "focus-visible:outline-offset-2"
-                                   "focus-visible:outline-black"]
+                                   "focus-visible:outline-black"
+
+                                   "hover:bg-yellow-200"
+                                   "focus-visible:bg-yellow-200"]
                                   (= uri "/profile")
                                   (conj "bg-yellow-200")))}
             "Profile"]
