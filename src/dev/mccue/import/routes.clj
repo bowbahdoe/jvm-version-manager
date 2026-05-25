@@ -5,7 +5,8 @@
             [dev.mccue.page.helpers :as page-helpers]
             [dev.mccue.sidebar.components :as sidebar-components]
             [dev.mccue.page.helpers :refer [classes]]
-            [hiccup2.core :as hiccup]))
+            [hiccup2.core :as hiccup])
+  (:import (java.net URI)))
 
 (defn get-import-handler
   [system request]
@@ -38,15 +39,31 @@
                                      "wt" "json"}})
                    (:body)
                    (cheshire/parse-string))]
+    (println (repeat 80 "-"))
+    (clojure.pprint/pprint result)
 
     {:status 200
      :body (str
              (hiccup/html
-               (for [artifact (get-in result ["response" "docs"])]
-                 #_[:code [:pre
-                           (with-out-str
-                             (clojure.pprint/pprint artifact))]]
-                 [:p (get artifact "id") "@" (get artifact "latestVersion")])))}))
+               [:div {:class (classes ["flex" "flex-col"])}
+                (for [artifact (get-in result ["response" "docs"])]
+                  #_[:code [:pre
+                            (with-out-str
+                              (clojure.pprint/pprint artifact))]]
+                  [:div {:class (classes ["p-3" "m-3" "outline-2" "w-fit" "flex" "flex-col" "spacing-3"])}
+                   [:div [:a
+                          (get artifact "g") ":" (get artifact "a")]]
+                   [:div
+
+                    [:a {:class (classes ["rounded-md"
+                                          "bg-black"
+                                          "text-white"])
+                         :href (str "https://central.sonatype.com/artifact/"
+                                    (get artifact "g")
+                                    "/"
+                                    (get artifact "a"))
+                         :target "_blank"}
+                     "Open in New Tab"]]])]))}))
 
 
 
