@@ -3,8 +3,10 @@
             [dev.mccue.environment :as environment]
             [dev.mccue.middleware :as middleware]
             [dev.mccue.module-set.routes :as module-set-routes]
+            [dev.mccue.ask.routes :as ask-routes]
             [dev.mccue.auth.routes :as auth-routes]
             [dev.mccue.chat.routes :as chat-routes]
+            [dev.mccue.import.routes :as import-routes]
             [dev.mccue.index.routes :as index-routes]
             [dev.mccue.page.helpers :as page-helpers]
             [dev.mccue.page.routes :as page-routes]
@@ -21,9 +23,11 @@
    (let [handler' (reitit-ring/ring-handler
                     (reitit-ring/router
                       ["" {:middleware [middleware/log-request-middleware]}
-                       [(module-set-routes/routes system)
+                       [(ask-routes/routes system)
+                        (module-set-routes/routes system)
                         (auth-routes/routes system)
                         (chat-routes/routes system)
+                        (import-routes/routes system)
                         (index-routes/routes system)
                         (page-routes/routes system)
                         (profile-routes/routes system)

@@ -152,6 +152,5 @@
   [system]
   ["" {:middleware (middleware/standard-html-route-middleware system)}
    ["/profile" {:get (partial #'get-profile-handler system)}]
-   ["/ask" {:get (partial #'placeholder-handler system)}]
    ["/answer" {:get (partial #'placeholder-handler system)}]
    #_["/search" {:get (partial #'get-profile-handler system)}]])

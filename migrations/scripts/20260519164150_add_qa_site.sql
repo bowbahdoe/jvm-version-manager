@@ -98,6 +98,10 @@ CREATE TRIGGER set_qa_question_tag_updated_at
     FOR EACH ROW
 EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 
+INSERT INTO qa.tag(value)
+VALUES ('java'), ('spring'), ('code review'), ('other');
+
+
 -- //@UNDO
 DROP TABLE qa.question_tag;
 DROP TABLE qa.tag;

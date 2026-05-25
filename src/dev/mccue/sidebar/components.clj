@@ -122,7 +122,27 @@
 
        [:p {:class (classes ["text-lg" "font-bold" "text-center" "mt-4"])}
         "Libraries"]
+       [:a {:href  "/import"
+            :class (classes (cond->
+                              ["flex items-center gap-1 px-4 py-2 my-2"
+                               "justify-center"
+                               "text-sm"
+                               "font-semibold"
+                               "text-black"
+                               "shadow-xs"
+                               "outline-2"
+                               "hover:outline-2"
+                               "hover:outline-offset-2"
+                               "hover:outline-black"
+                               "focus-visible:outline-2"
+                               "focus-visible:outline-offset-2"
+                               "focus-visible:outline-black"
 
+                               "hover:bg-yellow-200"
+                               "focus-visible:bg-yellow-200"]
+                              (= uri "/import")
+                              (conj "bg-yellow-200")))}
+        "Import"]
        [:a {:href  "/search"
             :class (classes (cond->
                               ["flex items-center gap-1 px-4 py-2 my-2"
