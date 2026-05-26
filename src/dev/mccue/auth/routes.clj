@@ -1,25 +1,27 @@
 (ns dev.mccue.auth.routes
   (:require [cheshire.core :as cheshire]
+            [clj-http.client :as clj-http-client]
             [clojure.string :as string]
             [clojure.tools.logging :as log]
             [dev.mccue.auth.duke :as duke]
+            [dev.mccue.auth.oauth2 :as oauth2]
             [dev.mccue.environment :as environment]
-            [dev.mccue.jsonquery :as jsonquery]
             [dev.mccue.middleware :as middleware]
-            [dev.mccue.page.helpers :as page-helpers :refer [classes page-response]]
+            [dev.mccue.page.helpers :refer [page-response]]
             [hiccup2.core :as hiccup]
             [honey.sql :as sql]
             [next.jdbc :as jdbc]
-            [dev.mccue.auth.oauth2 :as oauth2 :refer [wrap-oauth2]]
-            [clj-http.client :as clj-http-client]
-            [ring.util.response :as response]
-            [ring.util.anti-forgery :as anti-forgery])
+            [ring.util.anti-forgery :as anti-forgery]
+            [ring.util.request :as request]
+            [ring.util.response :as response])
 
-  (:import (dev.mccue.duke Duke Seed)
+  (:import (com.nimbusds.oauth2.sdk AuthorizationErrorResponse AuthorizationRequest$Builder AuthorizationResponse AuthorizationSuccessResponse ErrorObject ResponseType Scope)
+           (com.nimbusds.oauth2.sdk.id ClientID Identifier State)
+           (dev.mccue.duke Duke Seed)
            (java.net URI)
            (java.util Base64 Base64$Encoder Hashtable)
            (javax.naming NameNotFoundException NamingEnumeration)
-           (javax.naming.directory DirContext InitialDirContext Attributes Attribute)))
+           (javax.naming.directory Attribute Attributes DirContext InitialDirContext)))
 
 
 (defn dummy-route-handler
@@ -258,6 +260,85 @@
                                             :pkce?            true})]
     (launch-handler request)))
 
+(def github-launch-uri "/oauth2/github")
+(def github-redirect-uri "/oauth2/github/callback")
+(def github-landing-uri "/oauth2/github/landing")
+
+(defn get-github-launch-handler
+  [system request]
+  (let [authorize-uri (URI. "https://github.com/login/oauth/authorize")
+        client-id     (ClientID. (System/getenv "GITHUB_CLIENT_ID"))
+        scope         (Scope/parse ["user:email"])
+        redirect-uri  (URI. (-> (request/request-url request)
+                                (URI/create)
+                                (.resolve github-redirect-uri)
+                                (str)))
+        state         (State.)
+        request       (-> (AuthorizationRequest$Builder.
+                            (ResponseType. (into-array String ["code"]))
+                            client-id)
+                          (.state state)
+                          (.scope scope)
+                          (.redirectionURI redirect-uri)
+                          (.endpointURI authorize-uri)
+
+                          (.build))]
+    (-> (response/redirect (str (.toURI request)))
+        (assoc-in [:session ::state] (State/.getValue state)))))
+
+(defn get-github-redirect-handler
+  [{:system/keys [db]} request]
+  (let [parsed-response (^[URI] AuthorizationResponse/parse (URI/create (str (:uri request)
+                                                                             "?"
+                                                                             (:query-string request))))
+        session-state   (get-in request [:session ::state])]
+    (if (not= session-state (str (AuthorizationResponse/.getState parsed-response)))
+      (oauth2/state-mismatch-handler request)
+      (if-not (AuthorizationResponse/.indicatesSuccess parsed-response)
+        (let [error-object (-> (AuthorizationResponse/.toErrorResponse parsed-response)
+                               (AuthorizationErrorResponse/.getErrorObject))]
+          {:status  (ErrorObject/.getHTTPStatusCode error-object)
+           :headers {"Content-Type" "text/plain; charset=utf-8"}
+           :body    (ErrorObject/.getDescription error-object)})
+        (let [success-response (AuthorizationResponse/.toSuccessResponse parsed-response)
+              token             (str (AuthorizationSuccessResponse/.getAuthorizationCode success-response))]
+          (let [response (clj-http-client/get "https://api.github.com/user"
+                                              {:headers {"Authorization" (str "Bearer " token)}})
+                body     (cheshire/parse-string (:body response))
+                github-user-id (get body "id")
+                github-username (get body "login")
+                avatar-base64   (-> (Base64/getEncoder)
+                                    (Base64$Encoder/.encodeToString
+                                      (:body (clj-http.client/get (str "https://github.com/"
+                                                                       github-username
+                                                                       ".png?size=32")
+                                                                  {:as :byte-array}))))]
+            ;; TODO: Handle conflict when another user has the same github account linked.
+            (jdbc/execute-one! db
+                               (sql/format
+                                 {:insert-into :github.linked_account
+                                  :columns     [:user_id
+                                                :github_user_id
+                                                :github_username
+                                                :github_profile_image_png_base64]
+                                  :values      [[(:user/id (:user request))
+                                                 (str github-user-id)
+                                                 github-username
+                                                 avatar-base64]]
+                                  :returning [:id]
+                                  :on-conflict []
+                                  :do-nothing  true}))
+            (-> (response/redirect "/")
+                (assoc :session (-> (:session request)
+                                    (dissoc ::state))))))))))
+
+
+
+; .state(state)
+;    .redirectionURI(callback)
+;    .endpointURI(authzEndpoint)
+;    .build()
+; URI authzEndpoint = new URI("https://c2id.com/authz");
 
 
 
@@ -283,22 +364,23 @@
                                    :landing-uri      discord-landing-uri}})
          [discord-landing-uri {:get (partial #'get-discord-landing-handler system)}])])
 
-
-    (let [github-launch-uri "/oauth2/github"
-          github-redirect-uri "/oauth2/github/callback"
-          github-landing-uri "/oauth2/github/landing"]
-      ["" {:middleware [(middleware/require-authenticated-user-middleware system)]}
-       (conj
-         (oauth2/->reitit-routes {:github
-                                  {:authorize-uri    "https://github.com/login/oauth/authorize"
-                                   :access-token-uri "https://github.com/login/oauth/access_token"
-                                   :client-id        (System/getenv "GITHUB_CLIENT_ID")
-                                   :client-secret    (System/getenv "GITHUB_CLIENT_SECRET")
-                                   :scopes           ["user:email"]
-                                   :launch-uri       github-launch-uri
-                                   :redirect-uri     github-redirect-uri
-                                   :landing-uri      github-landing-uri}})
-         [github-landing-uri {:get (partial #'get-github-landing-handler system)}])])
+    [github-launch-uri {:get (partial #'get-github-launch-handler system)}]
+    [github-redirect-uri {:get (partial #'get-github-redirect-handler system)}]
+    #_(let [github-launch-uri "/oauth2/github"
+            github-redirect-uri "/oauth2/github/callback"
+            github-landing-uri "/oauth2/github/landing"]
+        ["" {:middleware [(middleware/require-authenticated-user-middleware system)]}
+         (conj
+           (oauth2/->reitit-routes {:github
+                                    {:authorize-uri    "https://github.com/login/oauth/authorize"
+                                     :access-token-uri "https://github.com/login/oauth/access_token"
+                                     :client-id        (System/getenv "GITHUB_CLIENT_ID")
+                                     :client-secret    (System/getenv "GITHUB_CLIENT_SECRET")
+                                     :scopes           ["user:email"]
+                                     :launch-uri       github-launch-uri
+                                     :redirect-uri     github-redirect-uri
+                                     :landing-uri      github-landing-uri}})
+           [github-landing-uri {:get (partial #'get-github-landing-handler system)}])])
 
     ["/oauth2/atproto/launch/:handle"
      {:get (partial #'get-atproto-launch-handler system)}]

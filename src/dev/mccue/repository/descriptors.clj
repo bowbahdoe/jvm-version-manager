@@ -2,7 +2,7 @@
   (:require
     [clojure.string :as string]
     [dev.mccue.repository.module-info :as mi]
-    [dev.mccue.repository.jmod :refer [maven-central-artifact]])
+    [dev.mccue.repository.artifact :refer [maven-central-artifact]])
   (:import (java.io StringReader)
            (java.util Map$Entry Properties)))
 

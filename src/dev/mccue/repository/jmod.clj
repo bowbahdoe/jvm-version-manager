@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.string :as string]
+            [dev.mccue.repository.artifact :as artifact]
             [dev.mccue.repository.module-info :as mi]
             [next.jdbc :as jdbc])
   (:import (java.io ByteArrayInputStream File InputStream OutputStream PrintStream)
@@ -17,17 +18,6 @@
            (org.apache.commons.compress.archivers.tar TarArchiveInputStream)
            (org.apache.commons.compress.archivers.zip ZipArchiveInputStream)))
 
-(defn- check-hash!
-  [artifact-description bytes]
-  (doseq [[hash-type hash-value] (:hashes artifact-description)]
-    (let [digest (MessageDigest/getInstance (string/upper-case hash-type))
-          actual-hash (HexFormat/.formatHex (HexFormat/of)
-                                            (MessageDigest/.digest digest bytes))
-          predicted-hash hash-value]
-      (when (not= actual-hash predicted-hash)
-        (throw (ex-info "Hash of artifact does not match" {:artifact-description artifact-description
-                                                           :predicted-hash predicted-hash
-                                                           :actual-hash actual-hash}))))))
 
 (defn determine-archive-type
   [artifact]
@@ -46,14 +36,7 @@
       (throw (ex-info (str "Unknown archive type: " url)
                       {:url url})))))
 
-(defn fetch-artifact
-  [artifact]
-  (let [url (:url artifact)
-        artifact-bytes (with-open [artifact-stream (io/input-stream url)]
-                         (InputStream/.readAllBytes artifact-stream))]
-    (check-hash! artifact artifact-bytes)
-    (merge artifact
-           {:bytes artifact-bytes})))
+
 
 
 (defn archive->sequenced-kv
@@ -65,34 +48,6 @@
         (recur (conj entries
                      {:name (ArchiveEntry/.getName entry)
                       :bytes (InputStream/.readAllBytes archive-input-stream)}))))))
-
-(defn module-info-from-archive-bytes
-  [bytes]
-
-  (with-open [zais (ZipArchiveInputStream. (ByteArrayInputStream. bytes))]
-    (let [module-info-entries  (loop [entries []]
-                                 (let [entry (ArchiveInputStream/.getNextEntry zais)]
-                                   (if (nil? entry)
-                                     entries
-                                     (let [name (ArchiveEntry/.getName entry)]
-                                       (if (or (= name "module-info.class")
-                                               (= name "classes/module-info.class")
-                                               (re-matches #"META-INF/versions/([0-9]+)/module-info.class"
-                                                           name))
-                                         (recur (conj entries
-                                                      {:name name
-                                                       :bytes (InputStream/.readAllBytes zais)}))
-                                         (recur entries))))))]
-
-      (cond
-        (empty? module-info-entries)
-        (throw (ex-info "No module-info.class in archive" {}))
-
-        (> (count module-info-entries) 1)
-        (throw (ex-info "More than one module-info.class in archive" {}))
-
-        :else
-        (mi/from-bytes (:bytes (first module-info-entries)))))))
 
 
 (defn- prepare-jmod-info!
@@ -193,7 +148,7 @@
                          :type            :jmod
                          :target-platform (:target-platform artifact)
                          :bytes           bytes
-                         :module-info     (module-info-from-archive-bytes bytes)}))))
+                         :module-info     (artifact/module-info-from-archive-bytes bytes)}))))
                 (finally (delete-directory-recursive (Path/.toFile temp-dir))))))
           artifacts)))
 
@@ -219,7 +174,7 @@
           (for [archive-entry archive-entries
                 :when (string/ends-with? (:name archive-entry)
                                          ".jmod")]
-            (let [module-info (module-info-from-archive-bytes (:bytes archive-entry))]
+            (let [module-info (artifact/module-info-from-archive-bytes (:bytes archive-entry))]
               {:name (as-> (:name archive-entry) _
                            (string/split _ #"/")
                            (last _)
@@ -267,7 +222,7 @@
                                  (add-module-info-to-jar (:bytes fetched-artifact)
                                                          module-info))
                                (:bytes fetched-artifact))
-                module-bytes (let [mi (module-info-from-archive-bytes module-bytes)
+                module-bytes (let [mi (artifact/module-info-from-archive-bytes module-bytes)
                                    new-mi (cond
                                             (and (not (:version mi))
                                                  (:mvn/version artifact))
@@ -304,7 +259,7 @@
                      {:name     (:name descriptor)
                       :type     :jar
                       :bytes    module-bytes
-                      :module-info (module-info-from-archive-bytes module-bytes)})
+                      :module-info (artifact/module-info-from-archive-bytes module-bytes)})
 
               (finally (delete-directory-recursive (Path/.toFile temp-dir))))))
         (:artifacts descriptor)))
@@ -394,7 +349,7 @@
   ([options descriptor]
    (let [options (if (:fetch options)
                    options
-                   (assoc options :fetch fetch-artifact))]
+                   (assoc options :fetch artifact/fetch-artifact))]
      (check-for-updates [descriptor])
      (mapv validate
            (case (:type descriptor)
@@ -511,7 +466,7 @@
   (do (require '[dev.mccue.repository.descriptors])
       (require '[dev.mccue.repository.repository :as rep])
     (let [db (user/db)]
-      (doseq [artifact (procure {:fetch (partial #'rep/fetch-cached db)}
+      (doseq [artifact (procure {:fetch (partial #'artifact/fetch-artifact-cached db)}
                                 (dev.mccue.repository.descriptors/oracle-jdk))]
         (rep/persist-module db artifact))))
 
@@ -525,7 +480,7 @@
         (doseq [descriptor descriptors]
           (println "-----")
           (println (:name descriptor))
-          (try (doseq [artifact (procure {:fetch (partial rep/fetch-cached (user/db))} descriptor)]
+          (try (doseq [artifact (procure {:fetch (partial artifact/fetch-artifact-cached (user/db))} descriptor)]
                  (rep/persist-module (user/db) artifact))
                (catch Exception e (Exception/.printStackTrace e))))))
   (do (require '[dev.mccue.repository.descriptors])
@@ -537,6 +492,7 @@
         (doseq [descriptor (sort-by :name descriptors)]
           (println "-----")
           (println (:name descriptor))
-          (try (doseq [artifact (procure {:fetch (partial rep/fetch-cached db)} descriptor)]
+          (try (doseq [artifact (procure {:fetch (partial artifact/fetch-artifact-cached db)} descriptor)]
                  (rep/persist-module db artifact))
                (catch Exception e (Exception/.printStackTrace e)))))))
+

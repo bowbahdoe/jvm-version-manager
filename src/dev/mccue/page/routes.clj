@@ -49,6 +49,15 @@
    :headers {"Content-Type" "text/css"}
    :body    (tailwind-css)})
 
+(def bluesky (with-open [is (io/input-stream (io/resource "bluesky.svg"))]
+               (bs/to-byte-array is)))
+
+(defn bluesky-handler
+  [_ _]
+  {:status 200
+   :headers {"Content-Type" "image/svg+xml"}
+   :body bluesky})
+
 (defn routes
   [system]
   ["" #_{:middleware [reitit-exception/exception-middleware]}
@@ -56,4 +65,5 @@
     ["/htmx.js" {:get {:handler (partial #'htmx-handler system)}}]
     ["/alpine.js" {:get {:handler (partial #'alpine-handler system)}}]
     ["/tailwind.css" {:get {:handler (partial #'tailwind-css-handler system)}}]
-    ["/force-graph.js" {:get {:handler (partial #'force-graph-handler system)}}]]])
+    ["/force-graph.js" {:get {:handler (partial #'force-graph-handler system)}}]
+    ["/bluesky.svg" {:get {:handler (partial #'bluesky-handler system)}}]]])

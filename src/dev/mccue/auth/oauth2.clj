@@ -1,74 +1,49 @@
 (ns dev.mccue.auth.oauth2
   {:vendored "https://github.com/weavejester/ring-oauth2/blob/551475ee3f795a3e5e6942a68e40c64ad18f3c8c/src/ring/middleware/oauth2.clj"}
   (:require [clj-http.client :as http]
-            [clojure.string :as str]
-            [crypto.random :as random]
-            [ring.util.codec :as codec]
             [ring.util.request :as req]
             [ring.util.response :as resp])
-  (:import [java.time Instant]
-           [java.util Date]
-           [java.security MessageDigest]
-           [java.nio.charset StandardCharsets]
-           [org.apache.commons.codec.binary Base64]))
+  (:import (com.nimbusds.oauth2.sdk AuthorizationRequest$Builder ResponseType ResponseType$Value Scope)
+           (com.nimbusds.oauth2.sdk.id ClientID State)
+           (com.nimbusds.oauth2.sdk.pkce CodeChallengeMethod CodeVerifier)
+           (java.net URI)
+           (java.time Instant)
+           (java.util Collection Date)))
 
 (defn- redirect-uri [profile request]
   (-> (req/request-url request)
       (java.net.URI/create)
-      (.resolve (:redirect-uri profile))
-      str))
+      (.resolve (:redirect-uri profile))))
 
 (defn- scopes [profile]
-  (str/join " " (map name (:scopes profile))))
+  (^[Collection] Scope/parse (map name (:scopes profile))))
 
-(defn- base64 [^bytes bs]
-  (String. (Base64/encodeBase64 bs)))
-
-(defn- str->sha256 [^String s]
-  (-> (MessageDigest/getInstance "SHA-256")
-      (.digest (.getBytes s StandardCharsets/UTF_8))))
-
-(defn- base64url [base64-str]
-  (-> base64-str (str/replace "+" "-") (str/replace "/" "_")))
-
-(defn- verifier->challenge [^String verifier]
-  (-> verifier str->sha256 base64 base64url (str/replace "=" "")))
-
-(defn- authorize-params [profile request state verifier]
-  (-> {:response_type "code"
-       :client_id     (:client-id profile)
-       :redirect_uri  (redirect-uri profile request)
-       :scope         (scopes profile)
-       :state         state}
-      (cond-> (:pkce? profile)
-              (assoc :code_challenge (verifier->challenge verifier)
-                     :code_challenge_method "S256"))))
 
 (defn- authorize-uri [profile request state verifier]
-  (str (:authorize-uri profile)
-       (if (.contains ^String (:authorize-uri profile) "?") "&" "?")
-       (codec/form-encode (authorize-params profile request state verifier))))
-
-(defn- random-state []
-  (base64url (random/base64 9)))
-
-(defn- random-code-verifier []
-  (base64url (random/base64 63)))
+  (let [client-id (^[String] ClientID. (:client-id profile))
+        request-builder (AuthorizationRequest$Builder.
+                          (ResponseType. (into-array ResponseType$Value
+                                                     [ResponseType$Value/CODE]))
+                          client-id)]
+    (-> request-builder
+        (.state state)
+        (.scope (scopes profile))
+        (.redirectionURI (redirect-uri profile request))
+        (.endpointURI (URI. (:authorize-uri profile))))
+    (when (:pkce? profile)
+      (^[CodeVerifier CodeChallengeMethod] .codeChallenge request-builder verifier CodeChallengeMethod/S256))
+    (.toURI (.build request-builder))))
 
 (defn make-launch-handler [{:keys [pkce?] :as profile}]
   (fn handler
     ([{:keys [session] :or {session {}} :as request}]
-     (let [state    (random-state)
-           verifier (when pkce? (random-code-verifier))
+     (let [state    (State.)
+           verifier (when pkce? (CodeVerifier.))
            session' (-> session
-                        (assoc ::state state)
+                        (assoc ::state (str state))
                         (cond-> pkce? (assoc ::code-verifier verifier)))]
-       (-> (resp/redirect (authorize-uri profile request state verifier))
-           (assoc :session session'))))
-    ([request respond raise]
-     (when-let [response (try (handler request)
-                              (catch Exception e (raise e) false))]
-       (respond response)))))
+       (-> (resp/redirect (str (authorize-uri profile request state verifier)))
+           (assoc :session session'))))))
 
 (defn- state-matches? [request]
   (= (get-in request [:session ::state])
@@ -129,28 +104,19 @@
 (defn- get-access-token
   ([profile request]
    (-> (http/request (access-token-http-options profile request))
-       (format-access-token)))
-  ([profile request respond raise]
-   (http/request (-> (access-token-http-options profile request)
-                     (assoc :async? true))
-                 (comp respond format-access-token)
-                 raise)))
+       (format-access-token))))
 
 (defn state-mismatch-handler
   ([_]
    {:status  400
     :headers {"Content-Type" "text/plain; charset=utf-8"}
-    :body    "OAuth2 error: state mismatch"})
-  ([request respond _]
-   (respond (state-mismatch-handler request))))
+    :body    "OAuth2 error: state mismatch"}))
 
 (defn no-auth-code-handler
   ([_]
    {:status  400
     :headers {"Content-Type" "text/plain; charset=utf-8"}
-    :body    "OAuth2 error: no authorization code"})
-  ([request respond _]
-   (respond (no-auth-code-handler request))))
+    :body    "OAuth2 error: no authorization code"}))
 
 (defn- redirect-response [{:keys [id landing-uri]} session access-token]
   (-> (resp/redirect landing-uri)
@@ -174,20 +140,7 @@
 
        :else
        (let [access-token (get-access-token profile request)]
-         (redirect-response profile session access-token))))
-    ([{:keys [session] :or {session {}} :as request} respond raise]
-     (cond
-       (not (state-matches? request))
-       (state-mismatch-handler request respond raise)
-
-       (nil? (get-authorization-code request))
-       (no-auth-code-handler request respond raise)
-
-       :else
-       (get-access-token profile request
-                         (fn [token]
-                           (respond (redirect-response profile session token)))
-                         raise)))))
+         (redirect-response profile session access-token))))))
 
 (defn- assoc-access-tokens [request]
   (if-let [tokens (-> request :session ::access-tokens)]
@@ -211,14 +164,7 @@
          ((make-launch-handler profile) request)
          (if-let [profile (redirects uri)]
            ((:redirect-handler profile (make-redirect-handler profile)) request)
-           (handler (assoc-access-tokens request)))))
-      ([{:keys [uri] :as request} respond raise]
-       (if-let [profile (launches uri)]
-         ((make-launch-handler profile) request respond raise)
-         (if-let [profile (redirects uri)]
-           ((:redirect-handler profile (make-redirect-handler profile))
-            request respond raise)
-           (handler (assoc-access-tokens request) respond raise)))))))
+           (handler (assoc-access-tokens request))))))))
 
 (defn ->reitit-routes
   [profiles]

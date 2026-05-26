@@ -22,6 +22,8 @@
         org.clj-commons/byte-streams           {:mvn/version "0.3.4"}
         org.java-websocket/Java-WebSocket      {:mvn/version "1.6.0"}
         nrepl/nrepl                            {:mvn/version "1.7.0"}
+        ;; OAuth Client
+        com.nimbusds/oauth2-oidc-sdk           {:mvn/version "11.37.2"}
         dev.mccue/duke                         {:local/root "jars/duke-2025.11.09-uber.jar"}}
  :paths ["src" "res"]
  :aliases {:dev   {:extra-paths ["dev"]

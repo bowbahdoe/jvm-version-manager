@@ -4,7 +4,8 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [clojure.tools.logging :as log]
-            [dev.mccue.repository.jmod :refer [fetch-artifact]]
+            [dev.mccue.repository.artifact :as artifact]
+            [dev.mccue.repository.artifact :refer [fetch-artifact]]
             [honey.sql :as sql]
             [next.jdbc :as jdbc])
   (:import (java.io InputStream)
@@ -15,21 +16,11 @@
            (org.sqlite SQLiteDataSource)))
 
 
-(defn persist-artifact
-  [db artifact]
-  (let [digest (MessageDigest/getInstance "sha256")
-        hash (HexFormat/.formatHex (HexFormat/of)
-                                   (MessageDigest/.digest digest (:bytes artifact)))]
-    (jdbc/execute! db (sql/format {:insert-into :repository.artifact
-                                   :columns [:sha256 :data]
-                                   :values [[hash (:bytes artifact)]]
-                                   :on-conflict []
-                                   :do-nothing true}))
-    hash))
+
 
 (defn persist-module
   [db artifact]
-  (let [sha256 (persist-artifact db artifact)]
+  (let [sha256 (artifact/persist-artifact db artifact)]
     (jdbc/with-transaction
       [t db]
       (let [rs (jdbc/execute-one! t [(String/.stripIndent
@@ -46,12 +37,13 @@
                                          mvn_version,
                                          mvn_classifier,
                                          type,
-                                         sha256
+                                         sha256,
+                                         user_id
                                        )
                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                        ON CONFLICT DO NOTHING
                                        RETURNING id")
-                                     (:name artifact)
+                                     (:name (:module-info artifact))
                                      (:version (:module-info artifact))
                                      (or (:target-platform (:module-info artifact))
                                          "universal")
@@ -67,7 +59,8 @@
                                      (:mvn/version artifact)
                                      (:mvn/classifier artifact)
                                      (name (:type artifact))
-                                     sha256])
+                                     sha256
+                                     (:user_id artifact)])
             module-id (:module/id rs)]
         ;; On initial insert we get the id back,
         ;; so that's our cue to insert the rest of the info.
@@ -171,25 +164,7 @@
 
 
 
-(defn retrieve-artifact
-  [db sha256]
-  (:artifact/data
-    (jdbc/execute-one! db [(String/.stripIndent
-                             "SELECT sha256, data
-                              FROM repository.artifact
-                              WHERE sha256 = ?")
-                           sha256])))
 
-
-(defn fetch-cached
-  [db artifact]
-  (let [{:keys [hashes]} artifact
-        {:strs [sha256]} hashes]
-    (or (and sha256 (some->> (retrieve-artifact db sha256)
-                             (assoc {:cached true} :bytes)))
-        (let [procured (fetch-artifact artifact)]
-          (persist-artifact db procured)
-          procured))))
 
 (defn- sqlite-db
   [path]
