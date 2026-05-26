@@ -1,6 +1,7 @@
 (ns dev.mccue.auth.oauth2-test
   {:vendored "https://github.com/weavejester/ring-oauth2/blob/551475ee3f795a3e5e6942a68e40c64ad18f3c8c/test/ring/middleware/oauth2_test.cljj"}
   (:require [clj-http.fake :as fake]
+            [clojure.string :as string]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [cheshire.core :as cheshire]
@@ -305,11 +306,11 @@
     (testing "verifier in extra data"
       (let [request  (-> (mock/request :get "/oauth2/test/callback")
                          (assoc :session {::oauth2/state "xyzxyz"
-                                          ::oauth2/code-verifier "jkljkl"})
+                                          ::oauth2/code-verifier "jkljkljkljkljkljkljkljkljkljkljkljkljkljkljkljkl"})
                          (assoc :query-params {"code"  "abcabc"
                                                "state" "xyzxyz"}))
             response (test-handler-pkce request)]
-        (is (= "jkljkl"
+        (is (= "jkljkljkljkljkljkljkljkljkljkljkljkljkljkljkljkl"
                (-> response
                    :session ::oauth2/access-tokens :test
                    :extra-data :code_verifier)))))))
@@ -321,9 +322,11 @@
   (let [profile  (assoc test-profile
                    :redirect-handler redirect-handler)
         handler  (wrap-oauth2 token-handler {:test profile})
+        query-params {"code" "abcabc", "state" "xyzxyz"}
         request  (-> (mock/request :get "/oauth2/test/callback")
                      (assoc :session {::oauth2/state "xyzxyz"})
-                     (assoc :query-params {"code" "abcabc", "state" "xyzxyz"}))
+                     (assoc :query-params query-params)
+                     (assoc :query-string (string/join "&" (map #(string/join "=" %) query-params))))
         response (handler request)
         body     (:body response)]
     (is (= "redirect-handler-response-body" body))))

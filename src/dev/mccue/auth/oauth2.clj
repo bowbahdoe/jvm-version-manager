@@ -3,7 +3,7 @@
   (:require [clj-http.client :as http]
             [ring.util.request :as req]
             [ring.util.response :as resp])
-  (:import (com.nimbusds.oauth2.sdk AuthorizationRequest$Builder ResponseType ResponseType$Value Scope)
+  (:import (com.nimbusds.oauth2.sdk AuthorizationRequest$Builder AuthorizationResponse ResponseType ResponseType$Value Scope)
            (com.nimbusds.oauth2.sdk.id ClientID State)
            (com.nimbusds.oauth2.sdk.pkce CodeChallengeMethod CodeVerifier)
            (java.net URI)
@@ -41,7 +41,7 @@
            verifier (when pkce? (CodeVerifier.))
            session' (-> session
                         (assoc ::state (str state))
-                        (cond-> pkce? (assoc ::code-verifier verifier)))]
+                        (cond-> pkce? (assoc ::code-verifier (.getValue verifier))))]
        (-> (resp/redirect (str (authorize-uri profile request state verifier)))
            (assoc :session session'))))))
 
@@ -72,13 +72,13 @@
   (get-in request [:query-params "code"]))
 
 (defn- get-code-verifier [request]
-  (get-in request [:session ::code-verifier]))
+  (CodeVerifier. (get-in request [:session ::code-verifier])))
 
 (defn- request-params [{:keys [pkce?] :as profile} request]
   (-> {:grant_type    "authorization_code"
        :code          (get-authorization-code request)
        :redirect_uri  (redirect-uri profile request)}
-      (cond-> pkce? (assoc :code_verifier (get-code-verifier request)))))
+      (cond-> pkce? (assoc :code_verifier (.getValue (get-code-verifier request))))))
 
 (defn- add-header-credentials [opts id secret]
   (assoc opts :basic-auth [id secret]))
@@ -130,17 +130,17 @@
            no-auth-code-handler   no-auth-code-handler}
     :as profile}]
   (fn
-    ([{:keys [session] :or {session {}} :as request}]
-     (cond
-       (not (state-matches? request))
-       (state-mismatch-handler request)
+    [{:keys [session] :or {session {}} :as request}]
+    (cond
+      (not (state-matches? request))
+      (state-mismatch-handler request)
 
-       (nil? (get-authorization-code request))
-       (no-auth-code-handler request)
+      (nil? (get-authorization-code request))
+      (no-auth-code-handler request)
 
-       :else
-       (let [access-token (get-access-token profile request)]
-         (redirect-response profile session access-token))))))
+      :else
+      (let [access-token (get-access-token profile request)]
+        (redirect-response profile session access-token)))))
 
 (defn- assoc-access-tokens [request]
   (if-let [tokens (-> request :session ::access-tokens)]
@@ -159,12 +159,12 @@
         launches  (into {} (map (juxt :launch-uri identity)) profiles)
         redirects (into {} (map (juxt parse-redirect-url identity)) profiles)]
     (fn
-      ([{:keys [uri] :as request}]
-       (if-let [profile (launches uri)]
-         ((make-launch-handler profile) request)
-         (if-let [profile (redirects uri)]
-           ((:redirect-handler profile (make-redirect-handler profile)) request)
-           (handler (assoc-access-tokens request))))))))
+      [{:keys [uri] :as request}]
+      (if-let [profile (launches uri)]
+        ((make-launch-handler profile) request)
+        (if-let [profile (redirects uri)]
+          ((:redirect-handler profile (make-redirect-handler profile)) request)
+          (handler (assoc-access-tokens request)))))))
 
 (defn ->reitit-routes
   [profiles]
