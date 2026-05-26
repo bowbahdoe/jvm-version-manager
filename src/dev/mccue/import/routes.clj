@@ -15,21 +15,22 @@
     :body (sidebar-components/sidebar
             request
             [:div
-             [:div
-              [:p "Import Libraries From"]
-              [:ul
-               [:li "Maven Central"]
-               [:li "Jitpack"]
-               [:li "Third-Party"]]]
-             [:input {:type "text"
+             [:p {:class (classes ["flex" "justify-center" "text-lg" "outline-4" "p-4" "m-4" "w-fit"])}
+              "Import a module from maven central"]
+             [:label {:for "query"}
+              "Query"]
+             [:input {:class (classes ["text-md" "outline-2" "p-2" "m-2"])
+                      :type "search"
                       :name "query"
                       :id "query"
                       :hx-get "/import/maven-central-search"
                       :hx-target "#maven-central-search-results"
                       :hx-swap "innerHTML"
-                      :hx-trigger "keyup changed delay:250ms"}]
+                      :hx-trigger "keyup changed delay:250ms"
+                      :placeholder "Search"}]
              [:div {:id "maven-central-search-results"
-                    :class (classes ["outline-2"])}]])))
+                    :class (classes ["outline-2"])}
+              [:p "Type above to search"]]])))
 
 (defn get-import-maven-central-search-handler
   [system request]
@@ -39,18 +40,18 @@
                                      "wt" "json"}})
                    (:body)
                    (cheshire/parse-string))]
-    (println (repeat 80 "-"))
+    #_#_(println (repeat 80 "-"))
     (clojure.pprint/pprint result)
 
     {:status 200
      :body (str
              (hiccup/html
-               [:div {:class (classes ["flex" "flex-col"])}
+               [:div {:class (classes ["flex" "flex-col" "w-full"])}
                 (for [artifact (get-in result ["response" "docs"])]
                   #_[:code [:pre
                             (with-out-str
                               (clojure.pprint/pprint artifact))]]
-                  [:div {:class (classes ["p-3" "m-3" "outline-2" "w-fit" "flex" "flex-col" "spacing-3"])}
+                  [:div {:class (classes ["p-3" "m-3" "outline-2" "w-fit" "flex" "flex-col" "spacing-3" "w-full"])}
                    [:div [:a
                           (get artifact "g") ":" (get artifact "a")]]
                    [:div

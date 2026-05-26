@@ -1,14 +1,12 @@
 (ns dev.mccue.session-store
   (:require [cheshire.core :as cheshire]
             [clojure.tools.logging :as log]
-            [next.jdbc :as jdbc]
             [honey.sql :as sql]
+            [next.jdbc :as jdbc]
             [ring.middleware.session.store :as session-store])
   (:import
     (com.fasterxml.uuid Generators)
-    (java.io ByteArrayInputStream)
-    (java.nio.charset StandardCharsets)
-    (java.time OffsetDateTime Duration)
+    (java.time Duration OffsetDateTime)
     (java.util UUID)
     (org.postgresql.util PGobject)))
 
