@@ -70,6 +70,7 @@
 
 (defn routes
   [system]
-  ["" {:middleware (middleware/standard-authenticated-html-route-middleware system)}
+  #_(middleware/standard-authenticated-html-route-middleware system)
+  ["" {:middleware (middleware/standard-html-route-middleware system)}
    ["/import" {:get (partial #'get-import-handler system)}]
    ["/import/maven-central-search" {:get (partial #'get-import-maven-central-search-handler system)}]])
