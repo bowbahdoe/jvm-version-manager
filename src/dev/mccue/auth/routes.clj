@@ -238,7 +238,7 @@
                                             :scopes           ["atproto"]
                                             :launch-uri       (:uri request)
                                             :redirect-uri     (if (environment/production?)
-                                                                "http://jvm.mccue.dev/oauth2/atproto/callback"
+                                                                "/oauth2/atproto/callback"
                                                                 "http://127.0.0.1:8999/oauth2/atproto/callback")
                                             :landing-uri      "/oauth2/atproto/landing"
                                             :pkce?            true
