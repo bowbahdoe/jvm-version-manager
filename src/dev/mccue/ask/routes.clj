@@ -99,3 +99,60 @@
   ["" {:middleware (middleware/standard-authenticated-html-route-middleware system)}
    ["/ask" {:get (partial #'get-ask-handler system)
             :post (partial #'post-ask-handler system)}]])
+
+
+(comment
+  (let [db (user/db)]
+    (jsonquery/execute!
+      db
+      {:select [:id
+                [:discord_accounts {:select [:id :discord_user_id :discord_username]
+                                    :from :discord.linked_account
+                                    :join-on [:id :user_id]}]
+                [:github_accounts {:select [:id :github_user_id :github_username]
+                                   :from :github.linked_account
+                                   :join-on [:id :user_id]}]
+                [:questions {:select [:id :title]
+                             :from :qa.question
+                             :join-on [:id :asked_by_user_id]}]
+                [:modules {:select [:name
+                                    :version
+                                    :target_platform
+                                    :mandated
+                                    :synthetic
+                                    [:requires {:select [:module
+                                                         :version
+                                                         :static
+                                                         :transitive
+                                                         :mandated
+                                                         :synthetic]
+                                                :from :repository.module_requires
+                                                :join-on [:id :module_id]}]
+                                    [:exports {:select [:package
+                                                        :to
+                                                        :mandated
+                                                        :synthetic]
+                                               :from :repository.module_exports
+                                               :join-on [:id :module_id]}]
+                                    [:uses {:select [:service]
+                                            :from :repository.module_uses
+                                            :join-on [:id :module_id]}]
+                                    [:provides {:select [:service
+                                                         :with]
+                                                :from :repository.module_provides
+                                                :join-on [:id :module_id]}]
+                                    [:packages {:select [:package]
+                                                :from :repository.module_package
+                                                :join-on [:id :module_id]}]
+                                    [:hashes {:select [:module
+                                                       :algorithm
+                                                       :hash]
+                                              :from :repository.module_hash
+                                              :join-on [:id :module_id]}]]
+                           :from :repository.module
+                           :order-by [[:repository.module.name :asc]
+                                      [:repository.module.version :desc]]
+                           :join-on [:id :user_id]}]]
+       :from :identity.user})))
+
+

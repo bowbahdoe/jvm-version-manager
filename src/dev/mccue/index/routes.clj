@@ -12,9 +12,13 @@
     :body (sidebar-components/sidebar
             request
             [:div {:class (classes ["flex" "flex-col"])}
+             [:a {:href "/oauth2/atproto/launch/mccue.dev"
+                  :class (classes ["text-lg" "bg-green-100" "cursor-pointer" "p-5"])}
+              "TEST OAUTH"]
              [:p "Atmosphere\n\nConnect with your Atmosphere account"]
              [:p "Handle"]
-             [:input {:type "text"}]
+             [:input {:type "text"
+                      :class (classes ["outline-1"])}]
              [:p "What is an Atmosphere account?"]
              [:p "Don't Care:"]
              [:p "Login with "

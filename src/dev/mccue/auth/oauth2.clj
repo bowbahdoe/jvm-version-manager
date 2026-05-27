@@ -1,28 +1,49 @@
 (ns dev.mccue.auth.oauth2
   {:vendored "https://github.com/weavejester/ring-oauth2/blob/551475ee3f795a3e5e6942a68e40c64ad18f3c8c/src/ring/middleware/oauth2.clj"}
-  (:require [clj-http.client :as http]
+  (:require [cheshire.core :as cheshire]
+            [clj-http.client :as http]
+            [clojure.string :as string]
+            [ring.util.request]
             [ring.util.request :as req]
             [ring.util.response :as resp])
-  (:import (com.nimbusds.oauth2.sdk AuthorizationRequest$Builder AuthorizationResponse ResponseType ResponseType$Value Scope)
+  (:import (com.nimbusds.jose JWSAlgorithm)
+           (com.nimbusds.jose.jwk Curve ECKey)
+           (com.nimbusds.jose.jwk.gen ECKeyGenerator)
+           (com.nimbusds.oauth2.sdk AccessTokenResponse AuthorizationCode AuthorizationCodeGrant AuthorizationErrorResponse
+                                    AuthorizationRequest$Builder
+                                    AuthorizationResponse
+                                    ErrorObject
+                                    OAuth2Error PushedAuthorizationErrorResponse PushedAuthorizationRequest
+                                    PushedAuthorizationResponse
+                                    PushedAuthorizationSuccessResponse
+                                    ResponseType
+                                    ResponseType$Value
+                                    Scope TokenErrorResponse TokenRequest$Builder TokenResponse)
+           (com.nimbusds.oauth2.sdk.dpop DPoPProofFactory DefaultDPoPProofFactory)
+           (com.nimbusds.oauth2.sdk.http HTTPRequest HTTPResponse)
            (com.nimbusds.oauth2.sdk.id ClientID State)
            (com.nimbusds.oauth2.sdk.pkce CodeChallengeMethod CodeVerifier)
+           (com.nimbusds.oauth2.sdk.token Tokens)
+           (com.nimbusds.openid.connect.sdk Nonce)
            (java.net URI)
            (java.time Instant)
-           (java.util Collection Date)))
+           (java.util Collection Date Map)))
 
 (defn- redirect-uri [profile request]
   (-> (req/request-url request)
+      (cond-> (:force-https profile)
+              (string/replace-first #"http://" "https://"))
       (java.net.URI/create)
-      (.resolve (:redirect-uri profile))))
+      (.resolve ^String (:redirect-uri profile))))
 
 (defn- scopes [profile]
   (^[Collection] Scope/parse (map name (:scopes profile))))
 
-
-(defn- authorize-uri [profile request state verifier]
-  (let [client-id (^[String] ClientID. (:client-id profile))
+(defn- authorize-request [profile request state verifier]
+  (let [client-id (ClientID. ^String (:client-id profile))
         request-builder (AuthorizationRequest$Builder.
-                          (ResponseType. (into-array ResponseType$Value
+                          (ResponseType. ^ResponseType$Value/1
+                                         (into-array ResponseType$Value
                                                      [ResponseType$Value/CODE]))
                           client-id)]
     (-> request-builder
@@ -30,9 +51,47 @@
         (.scope (scopes profile))
         (.redirectionURI (redirect-uri profile request))
         (.endpointURI (URI. (:authorize-uri profile))))
+    (when (:login-hint profile)
+      (.customParameter request-builder "login_hint" (into-array String [(:login-hint profile)])))
     (when (:pkce? profile)
-      (^[CodeVerifier CodeChallengeMethod] .codeChallenge request-builder verifier CodeChallengeMethod/S256))
-    (.toURI (.build request-builder))))
+      (.codeChallenge request-builder ^CodeVerifier verifier CodeChallengeMethod/S256))
+    (.build request-builder)))
+
+(defn- send-dpop-par-request
+  [par-endpoint proof-factory auth-req nonce]
+  (let [par-req         (PushedAuthorizationRequest. (URI. par-endpoint) auth-req)
+        http-req        (-> par-req (.toHTTPRequest))
+        _               (HTTPRequest/.setDPoP http-req
+                                              (DPoPProofFactory/.createDPoPJWT
+                                                proof-factory
+                                                (-> (HTTPRequest/.getMethod http-req)
+                                                    (Enum/.name))
+                                                (HTTPRequest/.getURI http-req)
+                                                nil
+                                                nonce))
+        http-res        (-> http-req (.send))
+        par-res         (PushedAuthorizationResponse/parse http-res)
+        {:keys [par-res
+                nonce
+                error-response]} (or (and (PushedAuthorizationResponse/.indicatesSuccess par-res)
+                                          {:par-res par-res
+                                           :nonce   nonce})
+                                     (let [error-object (-> par-res
+                                                            (PushedAuthorizationResponse/.toErrorResponse)
+                                                            (PushedAuthorizationErrorResponse/.getErrorObject))]
+                                       (if (and (nil? nonce)
+                                                (= error-object OAuth2Error/USE_DPOP_NONCE))
+                                         (send-dpop-par-request par-endpoint proof-factory auth-req
+                                                                (or (some-> http-res
+                                                                            (HTTPResponse/.getDPoPNonce))
+                                                                    (Nonce.)))
+                                         {:error-response
+                                          {:status  (ErrorObject/.getHTTPStatusCode error-object)
+                                           :headers {"Content-Type" "text/plain; charset=utf-8"}
+                                           :body    (ErrorObject/.getDescription error-object)}})))]
+    {:par-res        par-res
+     :nonce          nonce
+     :error-response error-response}))
 
 (defn make-launch-handler [{:keys [pkce?] :as profile}]
   (fn handler
@@ -41,13 +100,38 @@
            verifier (when pkce? (CodeVerifier.))
            session' (-> session
                         (assoc ::state (str state))
-                        (cond-> pkce? (assoc ::code-verifier (.getValue verifier))))]
-       (-> (resp/redirect (str (authorize-uri profile request state verifier)))
-           (assoc :session session'))))))
+                        (cond-> pkce? (assoc ::code-verifier (.getValue verifier))))
+           auth-req (authorize-request profile request state verifier)]
+       ;; If we are using PAR, we take this url, POST it,
+       ;; and redirect to whatever url is returned.
 
-(defn- state-matches? [request]
-  (= (get-in request [:session ::state])
-     (get-in request [:query-params "state"])))
+       ;; Also, assume DPoP if we are doing PAR. IDK if this is best
+       ;; for a generic client, but I made the rules here
+       (if-let [par-endpoint (:pushed-authorization-request-endpoint profile)]
+         (let [dpop-key      (-> (ECKeyGenerator. Curve/P_256)
+                                 (.keyID (str (random-uuid)))
+                                 (.generate))
+               ;; Proof Factory would be an awesome podcast name
+               proof-factory (DefaultDPoPProofFactory. dpop-key JWSAlgorithm/ES256)
+               {:keys [par-res nonce error-response]} (send-dpop-par-request par-endpoint proof-factory auth-req nil)]
+           (or
+             error-response
+             (-> (resp/redirect (str (URI. (:authorize-uri profile))
+                                     "?client_id=" (:client-id profile)
+                                     "&request_uri="
+                                     (-> (PushedAuthorizationResponse/.toSuccessResponse par-res)
+                                         (PushedAuthorizationSuccessResponse/.getRequestURI))))
+                 (assoc :session (-> session'
+                                     (assoc ::dpop {:key (str dpop-key)
+                                                    :nonce (.getValue nonce)}))))))
+         (-> (resp/redirect (str (.toURI auth-req)))
+             (assoc :session session')))))))
+
+
+(defn- state-matches? [request authorization-response]
+  (= (some-> (get-in request [:session ::state])
+             (^[String] State.))
+     (AuthorizationResponse/.getState authorization-response)))
 
 (defn- coerce-to-int [n]
   (if (string? n)
@@ -101,10 +185,77 @@
       (add-header-credentials opts client-id client-secret)
       (add-form-credentials   opts client-id client-secret))))
 
+(defn- send-dpop-token-request
+  [token-request proof-factory nonce]
+  (let [http-req        (-> token-request (.toHTTPRequest))
+        uri             (.getURI http-req)
+        htu             (URI/create (str (.getScheme uri)
+                                         "://"
+                                         (.getAuthority uri)
+                                         (.getPath uri)))
+        _               (HTTPRequest/.setDPoP http-req
+                                              (DPoPProofFactory/.createDPoPJWT
+                                                proof-factory
+                                                (-> (HTTPRequest/.getMethod http-req)
+                                                    (Enum/.name))
+                                                htu
+                                                nil
+                                                nonce))
+        http-res        (-> http-req (.send))
+        token-res       (TokenResponse/parse http-res)
+        {:keys [token-res
+                nonce
+                error-response]} (or (and (TokenResponse/.indicatesSuccess token-res)
+                                          {:token-res token-res
+                                           :nonce   nonce})
+                                     (let [error-object (-> token-res
+                                                            (TokenResponse/.toErrorResponse)
+                                                            (TokenErrorResponse/.getErrorObject))]
+                                       (if (and (nil? nonce)
+                                                (= error-object OAuth2Error/USE_DPOP_NONCE))
+                                         (send-dpop-token-request
+                                           token-request
+                                           proof-factory
+                                           (or (some-> http-res
+                                                       (HTTPResponse/.getDPoPNonce))
+                                               (Nonce.)))
+                                         {:error-response
+                                          {:status  (ErrorObject/.getHTTPStatusCode error-object)
+                                           :headers {"Content-Type" "text/plain; charset=utf-8"}
+                                           :body    (ErrorObject/.getDescription error-object)}})))]
+    {:token-res      token-res
+     :nonce          nonce
+     :error-response error-response}))
+
 (defn- get-access-token
-  ([profile request]
-   (-> (http/request (access-token-http-options profile request))
-       (format-access-token))))
+  [profile request]
+  (if-let [dpop-key (some-> (get-in request [:session ::dpop :key])
+                            (cheshire/parse-string-strict)
+                            (ECKey/parse))]
+
+    (let [code          (AuthorizationCode. ^String (get-authorization-code request))
+          redirect-uri  (redirect-uri profile request)
+          verifier      (CodeVerifier. ^String (get-in request [:session ::code-verifier]))
+          grant         (AuthorizationCodeGrant. code redirect-uri verifier)
+          token-request (-> (TokenRequest$Builder. (URI. (:access-token-uri profile))
+                                                   (ClientID. ^String (:client-id profile))
+                                                   grant)
+                            (.build))
+
+          proof-factory (DefaultDPoPProofFactory. dpop-key JWSAlgorithm/ES256)
+          {:keys [token-res
+                  nonce
+                  error-response]} (send-dpop-token-request token-request proof-factory nil)]
+      (if error-response
+        [nil error-response]
+        (let [tokens (AccessTokenResponse/.getTokens token-res)]
+          [(-> {:token         (str (Tokens/.getAccessToken tokens))
+                :refresh-token (str (Tokens/.getRefreshToken tokens))
+                :extra-data    (Tokens/.getMetadata tokens)})
+           nil])))
+    [(-> (http/request (access-token-http-options profile request))
+         (format-access-token))
+     nil]))
 
 (defn state-mismatch-handler
   ([_]
@@ -122,7 +273,7 @@
   (-> (resp/redirect landing-uri)
       (assoc :session (-> session
                           (assoc-in [::access-tokens id] access-token)
-                          (dissoc ::state ::code-verifier)))))
+                          (dissoc ::state ::code-verifier ::dpop)))))
 
 (defn make-redirect-handler
   [{:keys [state-mismatch-handler no-auth-code-handler]
@@ -131,16 +282,28 @@
     :as profile}]
   (fn
     [{:keys [session] :or {session {}} :as request}]
-    (cond
-      (not (state-matches? request))
-      (state-mismatch-handler request)
+    (let [authorization-response (^[URI Map] AuthorizationResponse/parse
+                                   (URI/create (:uri request))
+                                   (update-vals (:query-params request)
+                                                #(if (string? %) [%] %)))]
+      (cond
+        (not (state-matches? request authorization-response))
+        (state-mismatch-handler request)
 
-      (nil? (get-authorization-code request))
-      (no-auth-code-handler request)
+        (not (AuthorizationResponse/.indicatesSuccess authorization-response))
+        (let [error-object (-> (AuthorizationResponse/.toErrorResponse authorization-response)
+                               (AuthorizationErrorResponse/.getErrorObject))]
+          {:status  (ErrorObject/.getHTTPStatusCode error-object)
+           :headers {"Content-Type" "text/plain; charset=utf-8"}
+           :body    (ErrorObject/.getDescription error-object)})
 
-      :else
-      (let [access-token (get-access-token profile request)]
-        (redirect-response profile session access-token)))))
+        (nil? (get-authorization-code request))
+        (no-auth-code-handler request)
+
+        :else
+        (let [[access-token error-response] (get-access-token profile request)]
+          (or error-response
+              (redirect-response profile session access-token)))))))
 
 (defn- assoc-access-tokens [request]
   (if-let [tokens (-> request :session ::access-tokens)]

@@ -322,11 +322,9 @@
   (let [profile  (assoc test-profile
                    :redirect-handler redirect-handler)
         handler  (wrap-oauth2 token-handler {:test profile})
-        query-params {"code" "abcabc", "state" "xyzxyz"}
         request  (-> (mock/request :get "/oauth2/test/callback")
                      (assoc :session {::oauth2/state "xyzxyz"})
-                     (assoc :query-params query-params)
-                     (assoc :query-string (string/join "&" (map #(string/join "=" %) query-params))))
+                     (assoc :query-params {"code" "abcabc", "state" "xyzxyz"}))
         response (handler request)
         body     (:body response)]
     (is (= "redirect-handler-response-body" body))))
