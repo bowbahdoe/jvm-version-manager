@@ -94,17 +94,61 @@
   [system request]
   (page-response
     :title "Login"
-    :body [:main {:class (classes ["flex" "flex-col"])}
-           [:div {:class (classes ["flex" "flex-col"
-                                   "place-items-center"])
-                  :x-data "{handle: 'mccue.dev'}"}
-            [:p "Handle"]
-            [:input {:class (classes ["outline-1"])
-                     :type "text"
-                     :placeholder "handle"
-                     :x-model "handle"}]
-            [:a {":href" "'/oauth2/atproto/launch/' + handle"}
-             "...3##"]]]))
+    :body [:main {:class (classes ["flex"
+                                   "flex-col"
+                                   "h-full"
+                                   "justify-center"])}
+           [:div {:class (classes ["flex"
+                                   "flex-col"
+                                   "place-items-center"
+                                   "h-full"])}
+            [:div {:class (classes ["grow"])}]
+            [:div {:class (classes ["h-2/5"
+                                    "outline-3"
+                                    "flex"
+                                    "flex-col"
+                                    "w-2/5"
+                                    "place-items-center"
+                                    "gap-5"])}
+             [:p {:class (classes ["text-lg" "font-bold" "m-2"])}
+              "Login"]
+             [:p {:class (classes ["text-md"])}
+              "Connect with your Atmosphere account"]
+
+             [:div {:class (classes ["flex" "flex-col" "gap-3"])}
+              [:div {:class (classes ["flex" "flex-col" "gap-3" "outline-2" "outline-dashed" "p-2"])}
+               [:form {:class (classes ["flex" "flex-col" "gap-3"])
+                       :method "GET"
+                       :action "/oauth2/atproto/launch"}
+                [:label {:for "handle"
+                         :class (classes ["text-center" ])} "Handle"]
+                [:input {:class (classes ["outline-1" "p-2"])
+                         :type "text"
+                         :name "handle"
+                         :placeholder "dril.bsky.social"
+                         :id "handle"
+                         :required true
+                         :autocorrect "off"
+                         :autocapitalize "off"
+                         :spellcheck"false"}]
+                [:input {:type "submit"
+                         :class (classes ["outline-2" "cursor-pointer" "p-2"
+                                          "hover:bg-blue-200"
+                                          "focus-visible:bg-blue-200"
+                                          "text-center"])
+                         :value "Login"}]]]
+              [:a {:href "#"
+                   :class (classes ["flex" "flex-row" "s-2" "align-center"
+                                    "outline-2" "cursor-pointer" "p-2"
+                                    "hover:bg-red-200"
+                                    "focus-visible:bg-blue-200"
+                                    "text-center"])}
+               [:img {:src "/bluesky.svg"
+                      :class (classes ["size-[1em]" "self-center"])}]
+               [:div {:class (classes "w-[1em]")}]
+               "Login with Bluesky"]]]
+
+            [:div {:class (classes ["grow"])}]]]))
 
 
 
@@ -200,7 +244,7 @@
 
 (defn get-atproto-launch-handler
   [_ request]
-  (let [handle                           (get-in request [:path-params :handle])
+  (let [handle                           (get-in request [:query-params "handle"])
         did                              (get-did handle)
         service-endpoint                 (resolve-service-endpoint did)
         service-info                     (resolve-service-info service-endpoint)
@@ -312,7 +356,7 @@
                                    :force-https      (environment/production?)}})
          [github-landing-uri {:get (partial #'get-github-landing-handler system)}])])
 
-    ["/oauth2/atproto/launch/:handle"
+    ["/oauth2/atproto/launch"
      {:get (partial #'get-atproto-launch-handler system)}]
     ["/oauth2/atproto/callback"
      {:get (partial #'get-atproto-callback-handler system)}]

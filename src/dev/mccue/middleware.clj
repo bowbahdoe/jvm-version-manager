@@ -83,7 +83,7 @@
     (fn [request]
       (if (:user request)
         (handler request)
-        (response/redirect "/")))))
+        (response/redirect "/login")))))
 
 (defn standard-authenticated-html-route-middleware
   [system]

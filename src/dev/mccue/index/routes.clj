@@ -8,17 +8,12 @@
 (defn index-handler
   [{:system/keys [db]} request]
   (page-helpers/page-response
-    :title "ALL USERS"
+    :title "Home"
     :body (sidebar-components/sidebar
             request
             [:div {:class (classes ["flex" "flex-col"])}
-             [:a {:href "/oauth2/atproto/launch/mccue.dev"
-                  :class (classes ["text-lg" "bg-green-100" "cursor-pointer" "p-5"])}
-              "TEST OAUTH"]
-             [:p "Atmosphere\n\nConnect with your Atmosphere account"]
-             [:p "Handle"]
-             [:input {:type "text"
-                      :class (classes ["outline-1"])}]
+
+
              [:p "What is an Atmosphere account?"]
              [:p "Don't Care:"]
              [:p "Login with "
@@ -57,5 +52,5 @@ and Tangled with the same account."]
 
 (defn routes
   [system]
-  ["" {:middleware (middleware/standard-html-route-middleware system)}
+  ["" {:middleware (middleware/standard-authenticated-html-route-middleware system)}
    [["/" {:get (partial #'index-handler system)}]]])

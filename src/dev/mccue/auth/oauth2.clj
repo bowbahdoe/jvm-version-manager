@@ -108,12 +108,14 @@
        ;; Also, assume DPoP if we are doing PAR. IDK if this is best
        ;; for a generic client, but I made the rules here
        (if-let [par-endpoint (:pushed-authorization-request-endpoint profile)]
-         (let [dpop-key      (-> (ECKeyGenerator. Curve/P_256)
-                                 (.keyID (str (random-uuid)))
-                                 (.generate))
+         (let [dpop-key                 (-> (ECKeyGenerator. Curve/P_256)
+                                            (.keyID (str (random-uuid)))
+                                            (.generate))
                ;; Proof Factory would be an awesome podcast name
-               proof-factory (DefaultDPoPProofFactory. dpop-key JWSAlgorithm/ES256)
-               {:keys [par-res nonce error-response]} (send-dpop-par-request par-endpoint proof-factory auth-req nil)]
+               proof-factory            (DefaultDPoPProofFactory. dpop-key JWSAlgorithm/ES256)
+               {:keys [par-res
+                       nonce
+                       error-response]} (send-dpop-par-request par-endpoint proof-factory auth-req nil)]
            (or
              error-response
              (-> (resp/redirect (str (URI. (:authorize-uri profile))
