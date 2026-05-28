@@ -27,7 +27,16 @@
                                            {:select  [:github_username
                                                       :github_profile_image_png_base64]
                                             :from    :github.linked_account
-                                            :join-on [:id :user_id]}]]
+                                            :join-on [:id :user_id]}]
+                                          ^:single
+                                          [:atproto_access_credential
+                                           {:select [:did
+                                                     :access_token
+                                                     :refresh_token
+                                                     :service_endpoint]
+                                            :from :atproto.access_credential
+                                            :join-on [:atproto_did :did]}]]
+
 
                                  :from   :identity.user
                                  :where  [:= :id (:user/id user)]})]
@@ -39,6 +48,17 @@
                                                   "p-7"
                                                   "rounded-2xl"
                                                   "gap-4"])}
+
+                   [:code [:pre (clojure.pprint/pprint
+                                  (try
+                                    (:body (clj-http.client/get
+                                             (str (:service_endpoint (:atproto_access_credential user-info))
+                                                  "/xrpc/app.bsky.actor.getProfile"
+                                                  "?actor=" (:did (:atproto_access_credential user-info)))
+                                             {:headers {"Authorization"  (str "Bearer " (:access-token (:atproto_access_credential user-info)))
+                                                        "Content-Type" "application/json"}}))
+
+                                    (catch Exception e e)))]]
                    [:div {:class (classes ["flex"
                                            "flex-col"
                                            "items-center"])}

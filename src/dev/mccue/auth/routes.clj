@@ -211,6 +211,9 @@
     (slurp (str authorization-server-endpoint
                 "/.well-known/oauth-authorization-server"))))
 
+(def atproto-scopes
+  "atproto repo:dev.mccue.module?action=create blob:application/java-archive account:email")
+
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]
   {"application_type" "native",
@@ -219,7 +222,7 @@
    "grant_types" ["authorization_code", "refresh_token"],
    "redirect_uris" redirect-uris,
    "response_types" ["code"],
-   "scope" "atproto repo:dev.mccue.example?action=create",
+   "scope" atproto-scopes,
    "token_endpoint_auth_method" "none"})
 
 
@@ -234,17 +237,18 @@
                                                          "http://127.0.0.1:8999/oauth2/atproto/callback")])))})
 
 (def atproto-client-id
-  (if (environment/production?)
-    "http://jvm.mccue.dev/oauth2/atproto/client-metadata.json"
-    (-> (clj-http.client/post
-          "https://cimd-service.fly.dev/clients"
-          {:body (cheshire/generate-string
-                   (atproto-client-doc
-                     :redirect-uris
-                     ["http://127.0.0.1:8999/oauth2/atproto/callback"]))})
-        (:body)
-        (cheshire/parse-string-strict)
-        (get "client_id"))))
+  (delay
+    (if (environment/production?)
+      "http://jvm.mccue.dev/oauth2/atproto/client-metadata.json"
+      (-> (clj-http.client/post
+            "https://cimd-service.fly.dev/clients"
+            {:body (cheshire/generate-string
+                     (atproto-client-doc
+                       :redirect-uris
+                       ["http://127.0.0.1:8999/oauth2/atproto/callback"]))})
+          (:body)
+          (cheshire/parse-string-strict)
+          (get "client_id")))))
 
 (defn get-atproto-launch-handler
   [_ request]
@@ -260,8 +264,8 @@
             launch-handler                   (oauth2/make-launch-handler
                                                {:authorize-uri    authorization_endpoint
                                                 :access-token-uri token_endpoint
-                                                :client-id        atproto-client-id
-                                                :scopes           ["atproto"]
+                                                :client-id        @atproto-client-id
+                                                :scopes           [atproto-scopes]
                                                 :launch-uri       (:uri request)
                                                 :redirect-uri     (if (environment/production?)
                                                                     "http://jvm.mccue.dev/oauth2/atproto/callback"
@@ -286,7 +290,7 @@
         redirect-handler (oauth2/make-redirect-handler
                            {:id               :atproto
                             :access-token-uri token_endpoint
-                            :client-id        atproto-client-id
+                            :client-id        @atproto-client-id
                             :redirect-uri     (if (environment/production?)
                                                 "https://jvm.mccue.dev/oauth2/atproto/callback"
                                                 "http://127.0.0.1:8999/oauth2/atproto/callback")
