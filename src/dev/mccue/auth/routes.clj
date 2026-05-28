@@ -223,15 +223,15 @@
 
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]
-  {"application_type" "web"
-   "client_name" "Example Browser App",
-   "dpop_bound_access_tokens" true,
-   "grant_types" ["authorization_code", "refresh_token"],
-   "redirect_uris" redirect-uris,
-   "response_types" ["code"],
-   "scope" atproto-scopes,
+  {"application_type"           "web"
+   "client_name"                "Example Browser App",
+   "dpop_bound_access_tokens"   true,
+   "grant_types"                ["authorization_code", "refresh_token"],
+   "redirect_uris"              redirect-uris,
+   "response_types"             ["code"],
+   "scope"                      atproto-scopes,
    "token_endpoint_auth_method" "none"
-   "client_uri" "https://jvm.mccue.dev"})
+   "client_uri"                 "https://jvm.mccue.dev"})
 
 ;;TODO: make client metadata route *just* /oauth-client-metadata.json
 (defonce boot-time-str
@@ -284,7 +284,7 @@
                                                     :scopes           [atproto-scopes]
                                                     :launch-uri       (:uri request)
                                                     :redirect-uri     (if (environment/production?)
-                                                                        "http://jvm.mccue.dev/oauth2/atproto/callback"
+                                                                        "https://jvm.mccue.dev/oauth2/atproto/callback"
                                                                         "http://127.0.0.1:8999/oauth2/atproto/callback")
                                                     :landing-uri      "/oauth2/atproto/landing"
                                                     :pkce?            true
