@@ -15,6 +15,7 @@
             [ring.util.response :as response])
   (:import (dev.mccue.duke Duke Seed)
            (java.net URI)
+           (java.time Instant)
            (java.util Base64 Base64$Encoder Hashtable)
            (javax.naming NameNotFoundException NamingEnumeration)
            (javax.naming.directory Attribute Attributes DirContext InitialDirContext)))
@@ -202,8 +203,10 @@
 
 (defn resolve-service-info
   [service-endpoint]
-  (cheshire/parse-string-strict
-    (slurp (str service-endpoint "/.well-known/oauth-protected-resource"))))
+  (try
+    (cheshire/parse-string-strict
+      (slurp (str service-endpoint "/.well-known/oauth-protected-resource")))
+    (catch Exception _ nil)))
 
 (defn resolve-authorization-server-endpoint
   [service-info]
@@ -232,14 +235,21 @@
    "token_endpoint_auth_method" (if (environment/production?)
                                   "private_key_jwt"
                                   "none")})
+;;TODO: make client metadata route *just* /oauth-client-metadata.json
+(defonce boot-time-str
+         (str (-> (Instant/now)
+                  (Instant/.getEpochSecond))))
 
+(def production-client-id
+  (str "https://jvm.mccue.dev/oauth2/atproto/client-metadata.json"
+       "?serverboottime=" boot-time-str))
 
 (defn get-atproto-client-metadata-json-handler
   [system request]
   {:status 200
    :headers {"Content-Type" "application/json"}
    :body (cheshire/generate-string
-           (merge {"client_id"   "https://jvm.mccue.dev/oauth2/atproto/client-metadata.json"}
+           (merge {"client_id"   production-client-id}
                   (atproto-client-doc :redirect-uris [(if (environment/production?)
                                                          "https://jvm.mccue.dev/oauth2/atproto/callback"
                                                          "http://127.0.0.1:8999/oauth2/atproto/callback")])))})
@@ -247,7 +257,7 @@
 (def atproto-client-id
   (delay
     (if (environment/production?)
-      "http://jvm.mccue.dev/oauth2/atproto/client-metadata.json"
+      production-client-id
       (-> (clj-http.client/post
             "https://cimd-service.fly.dev/clients"
             {:body (cheshire/generate-string
@@ -262,33 +272,36 @@
   [_ request]
   (let [handle (get-in request [:query-params "handle"])]
     (if-let [did (get-did handle)]
-      (let [service-endpoint                 (resolve-service-endpoint did)
-            service-info                     (resolve-service-info service-endpoint)
-            authorization-server-endpoint    (resolve-authorization-server-endpoint service-info)
-            authorization-server-description (resolve-authorization-server-description authorization-server-endpoint)
-            authorization_endpoint           (get authorization-server-description "authorization_endpoint")
-            token_endpoint                   (get authorization-server-description "token_endpoint")
-            par_endpoint                     (get authorization-server-description "pushed_authorization_request_endpoint")
-            launch-handler                   (oauth2/make-launch-handler
-                                               {:authorize-uri    authorization_endpoint
-                                                :access-token-uri token_endpoint
-                                                :client-id        @atproto-client-id
-                                                :scopes           [atproto-scopes]
-                                                :launch-uri       (:uri request)
-                                                :redirect-uri     (if (environment/production?)
-                                                                    "http://jvm.mccue.dev/oauth2/atproto/callback"
-                                                                    "http://127.0.0.1:8999/oauth2/atproto/callback")
-                                                :landing-uri      "/oauth2/atproto/landing"
-                                                :pkce?            true
-                                                :pushed-authorization-request-endpoint par_endpoint
-                                                :login-hint                            handle})]
+      (if-let [service-endpoint (resolve-service-endpoint did)]
+        (if-let [service-info (resolve-service-info service-endpoint)]
+          (let [authorization-server-endpoint    (resolve-authorization-server-endpoint service-info)
+                authorization-server-description (resolve-authorization-server-description authorization-server-endpoint)
+                authorization_endpoint           (get authorization-server-description "authorization_endpoint")
+                token_endpoint                   (get authorization-server-description "token_endpoint")
+                par_endpoint                     (get authorization-server-description "pushed_authorization_request_endpoint")
+                launch-handler                   (oauth2/make-launch-handler
+                                                   {:authorize-uri    authorization_endpoint
+                                                    :access-token-uri token_endpoint
+                                                    :client-id        @atproto-client-id
+                                                    :scopes           [atproto-scopes]
+                                                    :launch-uri       (:uri request)
+                                                    :redirect-uri     (if (environment/production?)
+                                                                        "http://jvm.mccue.dev/oauth2/atproto/callback"
+                                                                        "http://127.0.0.1:8999/oauth2/atproto/callback")
+                                                    :landing-uri      "/oauth2/atproto/landing"
+                                                    :pkce?            true
+                                                    :pushed-authorization-request-endpoint par_endpoint
+                                                    :login-hint                            handle})]
 
-        (-> (launch-handler request)
-            (update :session assoc ::oauth2/atproto-service-endpoint service-endpoint)
-            (update :session assoc ::oauth2/token-endpoint token_endpoint)
-            (update :session assoc ::oauth2/atproto-did did)
-            (update :session assoc ::oauth2/atproto-handle handle)))
-
+            (-> (launch-handler request)
+                (update :session assoc ::oauth2/atproto-service-endpoint service-endpoint)
+                (update :session assoc ::oauth2/token-endpoint token_endpoint)
+                (update :session assoc ::oauth2/atproto-did did)
+                (update :session assoc ::oauth2/atproto-handle handle)))
+          (-> (response/redirect "/login")
+              (assoc :flash (str "Issue resolving service info for " handle " on " service-endpoint))))
+        (-> (response/redirect "/login")
+            (assoc :flash (str "Issue resolving service endpoint for " handle))))
       (-> (response/redirect "/login")
           (assoc :flash (str "No Atmosphere account found for " handle))))))
 
