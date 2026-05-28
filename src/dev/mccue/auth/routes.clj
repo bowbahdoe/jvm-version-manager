@@ -180,7 +180,7 @@
         (:body)
         (cheshire/parse-string-strict)
         (get "client_id"))))
-
+(log/info "CLIENT DID=" atproto-client-id)
 (defn get-atproto-launch-handler
   [_ request]
   (let [handle                           (get-in request [:path-params :handle])
