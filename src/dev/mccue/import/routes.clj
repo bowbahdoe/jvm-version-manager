@@ -99,7 +99,7 @@
                                                    :version    v})
         fetched-artifact (artifact/fetch-artifact-cached db artifact)
         module-info (artifact/module-info-from-archive-bytes (:bytes fetched-artifact))
-        user-id (:user/id (:user request))
+        user-id (:user/id (:identity request))
         digest (MessageDigest/getInstance "sha256")
         sha256 (HexFormat/.formatHex (HexFormat/of)
                                      (MessageDigest/.digest digest (:bytes fetched-artifact)))

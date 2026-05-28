@@ -3,7 +3,7 @@
 
 (defn sidebar
   [request & main]
-  (let [{:keys [user uri]} request]
+  (let [{:keys [identity uri]} request]
     [:div {:class (classes ["flex"
                             "h-screen"])}
      [:aside {:class (classes ["w-60 border-r-4 bg-white flex flex-col"])}
@@ -198,7 +198,7 @@
 
        [:div {:class "grow"}]
 
-       (when user
+       (when identity
          (list
            [:a {:href  "/profile"
                 :class (classes (cond->
@@ -239,7 +239,7 @@
                           "focus-visible:outline-black"])}
             "Logout"]))
 
-       (when-not user
+       (when-not identity
          [:a {:href  "/login"
               :class (classes
                        ["flex"

@@ -41,14 +41,14 @@
                                           :github_user_id
                                           :github_username
                                           :github_profile_image_png_base64]
-                            :values      [[(:user/id (:user request))
+                            :values      [[(:user/id (:identity request))
                                            (str github-user-id)
                                            github-username
                                            avatar-base64]]
                             :returning [:id]
                             :on-conflict []
                             :do-nothing  true}))
-      (-> (response/redirect "/")
+      (-> (response/redirect "/profile")
           (assoc :session (-> (:session request)
                               (dissoc ::oauth2/access-tokens)))))))
 
@@ -74,14 +74,14 @@
                                          :discord_user_id
                                          :discord_username
                                          :discord_profile_image_png_base64]
-                           :values      [[(:user/id (:user request))
+                           :values      [[(:user/id (:identity request))
                                           (str discord-user-id)
                                           discord-user-username
                                           avatar-base64]]
                            ;; TODO: Handle conflict when another user has the same discord account linked.
                            :on-conflict []
                            :do-nothing  true}))
-      (-> (response/redirect "/")
+      (-> (response/redirect "/profile")
           (assoc :session (-> (:session request)
                               (dissoc ::oauth2/access-tokens)))))))
 
@@ -113,7 +113,11 @@
              [:p {:class (classes ["text-lg" "font-bold" "m-2"])}
               "Login"]
              [:p {:class (classes ["text-md"])}
-              "Connect with your Atmosphere account"]
+              "Connect with your "
+              [:a {:href "https://atmosphereaccount.com/"
+                   :class (classes ["underline"])
+                   :target "_blank"}
+               "Atmosphere account"]]
 
              [:div {:class (classes ["flex" "flex-col" "gap-3"])}
               [:div {:class (classes ["flex" "flex-col" "gap-3" "outline-2" "outline-dashed" "p-2"])}
@@ -216,14 +220,18 @@
 
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]
-  {"application_type" "native",
+  {"application_type" (if (environment/production?)
+                        "web"
+                        "native")
    "client_name" "Example Browser App",
    "dpop_bound_access_tokens" true,
    "grant_types" ["authorization_code", "refresh_token"],
    "redirect_uris" redirect-uris,
    "response_types" ["code"],
    "scope" atproto-scopes,
-   "token_endpoint_auth_method" "none"})
+   "token_endpoint_auth_method" (if (environment/production?)
+                                  "private_key_jwt"
+                                  "none")})
 
 
 (defn get-atproto-client-metadata-json-handler

@@ -88,7 +88,7 @@
       (sql/format
         {:insert-into :qa.question
          :columns [:title :message :asked_by_user_id]
-         :values [[title message (:user/id (:user request))]]}))
+         :values [[title message (:user/id (:identity request))]]}))
 
 
     (-> (response/redirect "/ask")

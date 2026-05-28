@@ -4,7 +4,7 @@
             [clojure.string :as string]
             [dev.mccue.jsonquery :as jsonquery]
             [dev.mccue.middleware :as middleware]
-            [dev.mccue.page.helpers :as page-helpers]
+            [dev.mccue.page.helpers :as page-helpers :refer [classes]]
             [dev.mccue.sidebar.components :as sidebar-components]
             [hiccup2.core :as hiccup]
             [honey.sql :as h]
@@ -76,52 +76,45 @@
       request
       (list
         [:div
-         {:id "search"}
+         {:id "search"
+          :class (classes ["flex" "flex-col" "gap-2"])}
          [:label {:for "module-name-input"} "Module Name"]
-         [:br]
          [:input {:id         "module-name-input"
                   :name       "module-name-input"
                   :type       "text"
                   :hx-swap    "innerHTML"
                   :hx-trigger "keyup changed delay:250ms"
                   :hx-target  "#search-results"
-                  :hx-post    "/search"}]
-         [:br]
-         [:label {:for "provides-service-input"} "Provides Service"]
-         [:br]
-         [:input {:id         "provides-service-input"
-                  :name       "provides-service-input"
-                  :type       "text"
-                  :hx-swap    "innerHTML"
-                  :hx-trigger "keyup changed delay:250ms"
-                  :hx-target  "#search-results"
-                  :hx-post    "/search"}]
-         [:br]
-         [:input {:id   "windows-amd64"
-                  :type "checkbox"}]
-
+                  :hx-get     "/search/partial"
+                  :class      (classes ["outline-2" "p-2"])}]
 
          [:div {:id "search-results"}]]))))
 
-(defn post-search-handler
+(defn get-search-partial-handler
   [{:system/keys [db]} request]
-  (let [query (h/format
-                {:select [:module/id :module/name]
-                 :from   :repository.module
-                 :where  [:or
-                          (if-let [module-name (get (:params request) "module-name-input")]
-                            [:like :module/name (str "%" module-name "%")]
-                            [:= 1 0])]})
-        modules (jdbc/execute! db query)]
+  (let [modules (jsonquery/execute!
+                  db
+                  {:select [:id
+                            :name
+                            :version
+                            ^:single
+                            [:user {:select [:atproto_handle]
+                                    :from :identity.user
+                                    :join-on [:user_id :id]}]]
+                   :from :repository.module
+                   :where (if-let [module-name (get (:params request) :module-name-input)]
+                            [:like :name (str "%" module-name "%")]
+                            [:= 1 0])})]
+
     (page-helpers/hiccup-response
       :status 200
-      :body [:ul
+      :body [:div {:class ["flex" "flex-col" "gap-3"]}
              (for [module modules]
-               [:li {:id (:module/id module)}
+               [:div {:id (:id module)}
                 [:a {:style (page-helpers/css ["color: black"])
-                     :href  (str "/module/" (:module/name module))}
+                     :href  (str "/module/" (:name module))}
                  [:div {:style (page-helpers/css (conj page-helpers/solid-box "margin-left: 20px"))}
-                  (:module/name module)]]])])))
+                  (str (:atproto_handle (:user module)) "/" (:name module))]]])])))
 
 
 (defn get-latest-module-version
@@ -205,6 +198,7 @@
        [:div {:style  (page-helpers/css (concat page-helpers/solid-box
                                                 ["width: 100%"
                                                  "margin-bottom: 12px"]))
+              :class (classes ["cursor-pointer"])
               :x-data "{ open: false }"}
         [:h2 {:style   (page-helpers/css ["margin-top: 0"
                                           "margin-bottom: 0"])
@@ -226,6 +220,7 @@
               :x-data "{ open: false }"}
         [:h2 {:style   (page-helpers/css ["margin-top: 0"
                                           "margin-bottom: 0"])
+              :class (classes ["cursor-pointer"])
               "@click" "open = !open"} "Exports"
          [:span {:x-show "open"} (hiccup/raw " &#x25BC;")]
          [:span {:x-show "!open"} (hiccup/raw " &#x25B2;")]]
@@ -243,6 +238,7 @@
               :x-data "{ open: false }"}
         [:h2 {:style   (page-helpers/css ["margin-top: 0"
                                           "margin-bottom: 0"])
+              :class (classes ["cursor-pointer"])
               :role    "button"
               "@click" "open = !open"} "Provides"
          [:span {:x-show "open"} (hiccup/raw " &#x25BC;")]
@@ -262,6 +258,7 @@
        [:div {:style  (page-helpers/css (concat page-helpers/solid-box
                                                 ["width: 100%"
                                                  "margin-bottom: 12px"]))
+              :class (classes ["cursor-pointer"])
               :x-data "{ open: false }"}
         [:h2 {:style   (page-helpers/css ["margin-top: 0"
                                           "margin-bottom: 0"])
@@ -374,8 +371,8 @@
   ["" {:middleware (middleware/standard-html-route-middleware system)}
    [["/module-set-builder" {:get {:handler (partial #'module-set-builder-handler system)}}]
     ["/api/modules" {:get (partial #'get-modules-handler system)}]
-    ["/search" {:get  (partial #'get-search-handler system)
-                :post {:handler (partial #'post-search-handler system)}}]
+    ["/search" {:get  (partial #'get-search-handler system)}]
+    ["/search/partial" {:get {:handler (partial #'get-search-partial-handler system)}}]
     ["/module/:name" {:get        (partial #'module-details-handler system)}]
 
     ["/module-set/:name" {:get (partial #'module-set-details-handler system)}]

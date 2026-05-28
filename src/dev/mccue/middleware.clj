@@ -15,7 +15,8 @@
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.session :refer [wrap-session]]
             [ring.middleware.x-headers :as x]
-            [ring.util.response :as response]))
+            [ring.util.response :as response]
+            [buddy.auth.backends :as backends]))
 
 (defn log-request-middleware
   [handler]
@@ -34,9 +35,10 @@
                                                          {:select [:id]
                                                           :from   :identity.user
                                                           :where  [:= :id (parse-uuid user_id)]}))]
-              (handler (assoc request :user user-info))))
+              (handler (assoc request :identity user-info))))
           (handler request)))))
 
+(def ^{:private true} buddy-backend (backends/session))
 (defn standard-html-route-middleware
   [{:system/keys [session-store db]}]
   [;; Prevents "media type confusion" attacks
@@ -74,14 +76,12 @@
    ;; and put a :user key in the request
    (authenticate-user-middleware db)])
 
-
-
 (defn require-authenticated-user-middleware
   [{:system/keys [db]}]
   (fn require-authenticated-user-middleware
     [handler]
     (fn [request]
-      (if (:user request)
+      (if (:identity request)
         (handler request)
         (response/redirect "/login")))))
 

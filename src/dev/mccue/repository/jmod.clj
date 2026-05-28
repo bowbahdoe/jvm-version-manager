@@ -459,9 +459,6 @@
                                 (:module/id module)
                                 (:module_set/id module-set)]))))))))
 
-
-
-
 (comment
   (do (require '[dev.mccue.repository.descriptors])
       (require '[dev.mccue.repository.repository :as rep])
@@ -469,6 +466,13 @@
       (doseq [artifact (procure {:fetch (partial #'artifact/fetch-artifact-cached db)}
                                 (dev.mccue.repository.descriptors/oracle-jdk))]
         (rep/persist-module db artifact))))
+
+  (do (require '[dev.mccue.repository.descriptors])
+    (require '[dev.mccue.repository.repository :as rep])
+      (let [db (user/db)]
+        (doseq [artifact (procure {:fetch (partial #'artifact/fetch-artifact-cached db)}
+                                  (dev.mccue.repository.descriptors/just))]
+          (rep/persist-module db artifact))))
 
   (do (require '[dev.mccue.repository.descriptors])
       (require '[dev.mccue.repository.repository :as rep])

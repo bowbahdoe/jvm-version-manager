@@ -40,7 +40,7 @@
                                          sha256,
                                          user_id
                                        )
-                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                        ON CONFLICT DO NOTHING
                                        RETURNING id")
                                      (:name (:module-info artifact))
@@ -233,3 +233,6 @@
           (with-open [is (io/input-stream (Path/.toFile temp-file))]
             (InputStream/.readAllBytes is))))
       (finally (Files/deleteIfExists temp-file)))))
+
+(comment
+  (build-index (user/db)))
