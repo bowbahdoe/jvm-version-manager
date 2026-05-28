@@ -230,7 +230,9 @@
    "redirect_uris" redirect-uris,
    "response_types" ["code"],
    "scope" atproto-scopes,
-   "token_endpoint_auth_method" "none"})
+   "token_endpoint_auth_method" "none"
+   "client_uri" "https://jvm.mccue.dev"})
+
 ;;TODO: make client metadata route *just* /oauth-client-metadata.json
 (defonce boot-time-str
          (str (-> (Instant/now)
