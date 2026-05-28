@@ -223,18 +223,14 @@
 
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]
-  {"application_type" (if (environment/production?)
-                        "web"
-                        "native")
+  {"application_type" "web"
    "client_name" "Example Browser App",
    "dpop_bound_access_tokens" true,
    "grant_types" ["authorization_code", "refresh_token"],
    "redirect_uris" redirect-uris,
    "response_types" ["code"],
    "scope" atproto-scopes,
-   "token_endpoint_auth_method" (if (environment/production?)
-                                  "private_key_jwt"
-                                  "none")})
+   "token_endpoint_auth_method" "none"})
 ;;TODO: make client metadata route *just* /oauth-client-metadata.json
 (defonce boot-time-str
          (str (-> (Instant/now)
