@@ -11,62 +11,13 @@
     :title "Profile"
     :body (sidebar-components/sidebar
             request
-            [:div {:class "mt-10 flex flex-row items-center justify-center gap-x-6 gap-y-6"}
-             (when-not (:user request)
-               [:a {:href  "/login"
-                    :class (classes ["rounded-md"
-                                     "bg-black"
-                                     "px-3.5"
-                                     "py-2.5"
-                                     "text-sm"
-                                     "font-semibold"
-                                     "text-white"
-                                     "shadow-xs"
-                                     "hover:outline-2"
-                                     "hover:outline-offset-2"
-                                     "hover:outline-black"
-                                     "focus-visible:outline-2"
-                                     "focus-visible:outline-offset-2"
-                                     "focus-visible:outline-black"])} "@Login"])
-
-
-             (when (:user request)
-               [:a {:href  "/oauth2/github"
-                    :class (classes ["rounded-md"
-                                     "bg-black"
-                                     "px-3.5"
-                                     "py-2.5"
-                                     "text-sm"
-                                     "font-semibold"
-                                     "text-white"
-                                     "shadow-xs"
-                                     "hover:outline-2"
-                                     "hover:outline-offset-2"
-                                     "hover:outline-black"
-                                     "focus-visible:outline-2"
-                                     "focus-visible:outline-offset-2"
-                                     "focus-visible:outline-black"])} "Link GitHub Account"])
-             (when (:user request)
-               [:a {:href  "/oauth2/discord"
-                    :class (classes ["rounded-md"
-                                     "bg-black"
-                                     "px-3.5"
-                                     "py-2.5"
-                                     "text-sm"
-                                     "font-semibold"
-                                     "text-white"
-                                     "shadow-xs"
-                                     "hover:outline-2"
-                                     "hover:outline-offset-2"
-                                     "hover:outline-black"
-                                     "focus-visible:outline-2"
-                                     "focus-visible:outline-offset-2"
-                                     "focus-visible:outline-black"])} "Link Discord Account"])]
-
-            (when-let [user (:user request)]
+            [:div {:class "mt-10 flex flex-row items-center justify-center gap-x-6 gap-y-6"}]
+            (let [user (:user request)]
               (let [user-info (jsonquery/execute-one!
                                 db
                                 {:select [:id :profile_image_png_base64
+                                          :atproto_handle
+                                          :atproto_did
                                           [:discord_linked_accounts
                                            {:select  [:discord_username
                                                       :discord_profile_image_png_base64]
@@ -86,8 +37,11 @@
                                                   "flex-col"
                                                   "items-center"
                                                   "p-7"
-                                                  "rounded-2xl"])}
-                   [:div
+                                                  "rounded-2xl"
+                                                  "gap-4"])}
+                   [:div {:class (classes ["flex"
+                                           "flex-col"
+                                           "items-center"])}
                     [:img
                      {:class  (classes ["size-48"
                                         "rounded-md"
@@ -97,7 +51,8 @@
                       :src    (str "data:image/png;base64, " (:profile_image_png_base64 user-info))
                       :width  64
                       :height 64
-                      :style  "image-rendering: pixelated"}]]]
+                      :style  "image-rendering: pixelated"}]
+                    [:p (:atproto_handle user-info) " - " (:atproto_did user-info)]]]
                   [:h2 "Linked Discord Accounts"
                    (for [account (:discord_linked_accounts user-info)]
                      [:div
@@ -117,7 +72,22 @@
                                           "h-32px"])
                          :src   (str "data:image/png;base64, " (:discord_profile_image_png_base64 account))
                          :style "image-rendering: pixelated"}]
-                       [:p (:discord_username account)]]])]
+                       [:p (:discord_username account)]]])
+                   [:a {:href  "/oauth2/github"
+                        :class (classes ["rounded-md"
+                                         "bg-black"
+                                         "px-3.5"
+                                         "py-2.5"
+                                         "text-sm"
+                                         "font-semibold"
+                                         "text-white"
+                                         "shadow-xs"
+                                         "hover:outline-2"
+                                         "hover:outline-offset-2"
+                                         "hover:outline-black"
+                                         "focus-visible:outline-2"
+                                         "focus-visible:outline-offset-2"
+                                         "focus-visible:outline-black"])} "Link GitHub Account"]]
                   [:h2 "Linked Github Accounts"
                    (for [account (:github_linked_accounts user-info)]
                      [:div
@@ -137,7 +107,24 @@
 
                          :src   (str "data:image/png;base64, " (:github_profile_image_png_base64 account))
                          :style "image-rendering: pixelated"}]
-                       [:p (:github_username account)]]])]))))))
+                       [:p (:github_username account)]]])
+
+                   [:a {:href  "/oauth2/discord"
+                        :class (classes ["rounded-md"
+                                         "bg-black"
+                                         "px-3.5"
+                                         "py-2.5"
+                                         "text-sm"
+                                         "font-semibold"
+                                         "text-white"
+                                         "shadow-xs"
+                                         "hover:outline-2"
+                                         "hover:outline-offset-2"
+                                         "hover:outline-black"
+                                         "focus-visible:outline-2"
+                                         "focus-visible:outline-offset-2"
+                                         "focus-visible:outline-black"])}
+                    "Link Discord Account"]]))))))
 
 
 (defn placeholder-handler
@@ -150,7 +137,7 @@
 
 (defn routes
   [system]
-  ["" {:middleware (middleware/standard-html-route-middleware system)}
+  ["" {:middleware (middleware/standard-authenticated-html-route-middleware system)}
    ["/profile" {:get (partial #'get-profile-handler system)}]
    ["/answer" {:get (partial #'placeholder-handler system)}]
    #_["/search" {:get (partial #'get-profile-handler system)}]])

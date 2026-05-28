@@ -213,7 +213,7 @@
 
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]
-  {"application_type" "web",
+  {"application_type" "native",
    "client_name" "Example Browser App",
    "dpop_bound_access_tokens" true,
    "grant_types" ["authorization_code", "refresh_token"],
@@ -274,7 +274,8 @@
         (-> (launch-handler request)
             (update :session assoc ::oauth2/atproto-service-endpoint service-endpoint)
             (update :session assoc ::oauth2/token-endpoint token_endpoint)
-            (update :session assoc ::oauth2/atproto-did did)))
+            (update :session assoc ::oauth2/atproto-did did)
+            (update :session assoc ::oauth2/atproto-handle handle)))
 
       (-> (response/redirect "/login")
           (assoc :flash (str "No Atmosphere account found for " handle))))))
@@ -299,7 +300,8 @@
 
 (defn get-atproto-landing-handler
   [{:system/keys [db]} request]
-  (let [did                     (get-in request [:session ::oauth2/atproto-did])
+  (let [handle                  (get-in request [:session ::oauth2/atproto-handle])
+        did                     (get-in request [:session ::oauth2/atproto-did])
         service-endpoint        (get-in request [:session ::oauth2/atproto-service-endpoint])
         access-tokens           (get-in request [:session ::oauth2/access-tokens :atproto])
         {:keys [token
@@ -313,10 +315,10 @@
                           :do-update-set [:access_token :refresh_token :service_endpoint]}))
       (jdbc/execute! t (sql/format
                          {:insert-into :identity.user
-                          :columns     [:atproto_did :profile_image_png_base64]
-                          :values      [[did (duke/duke->png-base64 (Duke. (Seed. (hash did))))]]
-                          :on-conflict []
-                          :do-nothing  true})))
+                          :columns     [:atproto_did :atproto_handle :profile_image_png_base64]
+                          :values      [[did handle (duke/duke->png-base64 (Duke. (Seed. (hash did))))]]
+                          :on-conflict [:atproto_did]
+                          :do-update-set [:atproto_handle]})))
     (let [{:user/keys [id]} (jdbc/execute-one! db (sql/format
                                                     {:select [:id]
                                                      :from   :identity.user
@@ -324,6 +326,7 @@
       (-> (response/redirect "/")
           (assoc :session (-> (:session request)
                               (assoc :user_id id)
+                              (dissoc ::oauth2/atproto-handle)
                               (dissoc ::oauth2/atproto-did)
                               (dissoc ::oauth2/atproto-service-endpoint)
                               (dissoc ::oauth2/access-tokens)))))))
