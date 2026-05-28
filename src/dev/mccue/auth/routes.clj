@@ -131,62 +131,20 @@
               (slurp (str "https://plc.directory/" did)))]
     (get-in info ["service" 0 "serviceEndpoint"])))
 
-(defn get-authorization-server-description
-  [did]
-  (let [info (cheshire/parse-string-strict
-               (slurp (str "https://plc.directory/" did)))
-        service-endpoint (get-in info ["service" 0 "serviceEndpoint"])
-        service-info (cheshire/parse-string-strict
-                       (slurp (str service-endpoint "/.well-known/oauth-protected-resource")))
-        authorization-server (get-in service-info ["authorization_servers" 0])
-        authorization-server-description (cheshire/parse-string-strict
-                                           (slurp (str authorization-server
-                                                       "/.well-known/oauth-authorization-server")))]
-    authorization-server-description))
+(defn resolve-service-info
+  [service-endpoint]
+  (cheshire/parse-string-strict
+    (slurp (str service-endpoint "/.well-known/oauth-protected-resource"))))
 
-(defn get-atproto-handler
-  [system request]
-  (page-response
-    :body [:form {:action "/not-oauth/atproto"
-                  :method "POST"
-                  :class (classes ["flex" "flex-col" "m-3" "gap-3"])}
-           (hiccup/raw (anti-forgery/anti-forgery-field))
-           [:label {:for "handle"} "Handle"]
-           [:input {:type "text" :id "handle" :name "handle"
-                    :class (classes ["outline-1"])}]
-           [:label {:for "password"} "Password"]
-           [:input {:type "password" :id "password" :name "password"
-                    :class (classes ["outline-1"])}]
+(defn resolve-authorization-server-endpoint
+  [service-info]
+  (get-in service-info ["authorization_servers" 0]))
 
-           [:input {:type "submit"
-                    :class (classes ["outline-1"])}]]))
-
-(defn post-atproto-handler
-  [{:system/keys [db]} request]
-  (let [{:strs [handle password]} (:form-params request)
-        did                       (get-did handle)
-        service-endpoint          (resolve-service-endpoint did)
-        create-session-endpoint   (str (.resolve (URI/create service-endpoint)
-                                                 "/xrpc/com.atproto.server.createSession/"))]
-    (let [{:strs [did]}  (cheshire/parse-string-strict
-                           (:body (clj-http-client/post create-session-endpoint
-                                                        {:body (cheshire/generate-string
-                                                                 {:identifier handle
-                                                                  :password   password})
-                                                         :headers {"Content-Type" "application/json"}})))]
-      (jdbc/execute! db (sql/format
-                          {:insert-into :identity.user
-                           :columns     [:atproto_did :profile_image_png_base64]
-                           :values      [[did (duke/duke->png-base64 (Duke. (Seed. (hash did))))]]
-                           :on-conflict []
-                           :do-nothing  true}))
-      (let [{:user/keys [id]} (jdbc/execute-one! db (sql/format
-                                                      {:select [:id]
-                                                       :from   :identity.user
-                                                       :where  [:= :atproto_did did]}))]
-        (-> (response/redirect "/")
-            (assoc :session (-> (:session request)
-                                (assoc :user_id id))))))))
+(defn resolve-authorization-server-description
+  [authorization-server-endpoint]
+  (cheshire/parse-string-strict
+    (slurp (str authorization-server-endpoint
+                "/.well-known/oauth-authorization-server"))))
 
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]
@@ -227,7 +185,10 @@
   [_ request]
   (let [handle                           (get-in request [:path-params :handle])
         did                              (get-did handle)
-        authorization-server-description (get-authorization-server-description did)
+        service-endpoint                 (resolve-service-endpoint did)
+        service-info                     (resolve-service-info service-endpoint)
+        authorization-server-endpoint    (resolve-authorization-server-endpoint service-info)
+        authorization-server-description (resolve-authorization-server-description authorization-server-endpoint)
         authorization_endpoint           (get authorization-server-description "authorization_endpoint")
         token_endpoint                   (get authorization-server-description "token_endpoint")
         par_endpoint                     (get authorization-server-description "pushed_authorization_request_endpoint")
@@ -238,7 +199,7 @@
                                             :scopes           ["atproto"]
                                             :launch-uri       (:uri request)
                                             :redirect-uri     (if (environment/production?)
-                                                                "/oauth2/atproto/callback"
+                                                                "http://jvm.mccue.dev/oauth2/atproto/callback"
                                                                 "http://127.0.0.1:8999/oauth2/atproto/callback")
                                             :landing-uri      "/oauth2/atproto/landing"
                                             :pkce?            true
@@ -246,7 +207,9 @@
                                             :login-hint                            handle})]
 
     (-> (launch-handler request)
-        (update :session assoc ::oauth2/token-endpoint token_endpoint))))
+        (update :session assoc ::oauth2/atproto-service-endpoint service-endpoint)
+        (update :session assoc ::oauth2/token-endpoint token_endpoint)
+        (update :session assoc ::oauth2/atproto-did did))))
 
 (defn get-atproto-callback-handler
   [system request]
@@ -261,19 +224,38 @@
                             :landing-uri      "/oauth2/atproto/landing"
                             :pkce?            true})]
     (-> (redirect-handler request)
-        (update :session dissoc ::oauth2/token-endpoint)))
-
-  #_(page-response
-      :body [:code [:pre (with-out-str (clojure.pprint/pprint
-                                         (:session request)))]]))
+        (update :session dissoc ::oauth2/token-endpoint))))
 
 (defn get-atproto-landing-handler
-  [system request]
-  (page-response
-    :body [:code
-           [:pre
-            (with-out-str
-              (clojure.pprint/pprint (:session request)))]]))
+  [{:system/keys [db]} request]
+  (let [did                     (get-in request [:session ::oauth2/atproto-did])
+        service-endpoint        (get-in request [:session ::oauth2/atproto-service-endpoint])
+        access-tokens           (get-in request [:session ::oauth2/access-tokens :atproto])
+        {:keys [token
+                refresh-token]} access-tokens]
+    (jdbc/with-transaction [t db]
+      (jdbc/execute! t (sql/format
+                         {:insert-into :atproto.access_credential
+                          :columns [:access_token :refresh_token :service_endpoint :did]
+                          :values [[token refresh-token service-endpoint did]]
+                          :on-conflict [:did]
+                          :do-update-set [:access_token :refresh_token :service_endpoint]}))
+      (jdbc/execute! t (sql/format
+                         {:insert-into :identity.user
+                          :columns     [:atproto_did :profile_image_png_base64]
+                          :values      [[did (duke/duke->png-base64 (Duke. (Seed. (hash did))))]]
+                          :on-conflict []
+                          :do-nothing  true})))
+    (let [{:user/keys [id]} (jdbc/execute-one! db (sql/format
+                                                    {:select [:id]
+                                                     :from   :identity.user
+                                                     :where  [:= :atproto_did did]}))]
+      (-> (response/redirect "/")
+          (assoc :session (-> (:session request)
+                              (assoc :user_id id)
+                              (dissoc ::oauth2/atproto-did)
+                              (dissoc ::oauth2/atproto-service-endpoint)
+                              (dissoc ::oauth2/access-tokens)))))))
 
 (defn routes
   [system]
@@ -320,8 +302,6 @@
     ["/oauth2/atproto/landing"
      {:get (partial #'get-atproto-landing-handler system)}]
     ["/oauth2/atproto/client-metadata.json"
-     {:get (partial #'get-atproto-client-metadata-json-handler system)}]
-    ["/not-oauth/atproto" {:get (partial #'get-atproto-handler system)
-                           :post (partial #'post-atproto-handler system)}]]])
+     {:get (partial #'get-atproto-client-metadata-json-handler system)}]]])
 
 
