@@ -90,6 +90,23 @@
   (-> (response/redirect "/")
       (assoc :session nil)))
 
+(defn get-login-handler
+  [system request]
+  (page-response
+    :title "Login"
+    :body [:main {:class (classes ["flex" "flex-col"])}
+           [:div {:class (classes ["flex" "flex-col"
+                                   "place-items-center"])
+                  :x-data "{handle: 'mccue.dev'}"}
+            [:p "Handle"]
+            [:input {:class (classes ["outline-1"])
+                     :type "text"
+                     :placeholder "handle"
+                     :x-model "handle"}]
+            [:a {":href" "'/oauth2/atproto/launch/' + handle"}
+             "...3##"]]]))
+
+
 
 (defn get-did-dns
   [atproto-handle]
@@ -163,10 +180,10 @@
   {:status 200
    :headers {"Content-Type" "application/json"}
    :body (cheshire/generate-string
-           (merge {"client_id"   (str "https://" (get-in request [:headers "host"]))}
+           (merge {"client_id"   "https://jvm.mccue.dev/oauth2/atproto/client-metadata.json"}
                   (atproto-client-doc :redirect-uris [(if (environment/production?)
-                                                        "https://jvm.mccue.dev/oauth2/atproto/callback"
-                                                        "http://127.0.0.1:8999/oauth2/atproto/callback")])))})
+                                                         "https://jvm.mccue.dev/oauth2/atproto/callback"
+                                                         "http://127.0.0.1:8999/oauth2/atproto/callback")])))})
 
 (def atproto-client-id
   (if (environment/production?)
@@ -180,7 +197,7 @@
         (:body)
         (cheshire/parse-string-strict)
         (get "client_id"))))
-(log/info "CLIENT DID=" atproto-client-id)
+
 (defn get-atproto-launch-handler
   [_ request]
   (let [handle                           (get-in request [:path-params :handle])
@@ -302,6 +319,8 @@
     ["/oauth2/atproto/landing"
      {:get (partial #'get-atproto-landing-handler system)}]
     ["/oauth2/atproto/client-metadata.json"
-     {:get (partial #'get-atproto-client-metadata-json-handler system)}]]])
+     {:get (partial #'get-atproto-client-metadata-json-handler system)}]
+    ["/login"
+     {:get (partial #'get-login-handler system)}]]])
 
 

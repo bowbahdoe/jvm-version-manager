@@ -306,7 +306,7 @@
             "Logout"]))
 
        (when-not user
-         [:a {:href  "/not-oauth/atproto"
+         [:a {:href  "/login"
               :class (classes
                        ["flex"
                         "items-center"

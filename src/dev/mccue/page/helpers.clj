@@ -52,7 +52,7 @@
            [:head
             (list
               [:script {:src "/htmx.js"}]
-              [:script {:src   "/alpine.js"}]
+              [:script {:src "/alpine.js"}]
               [:link {:href "/tailwind.css" :rel "stylesheet"}]
               [:title title]
               head)]

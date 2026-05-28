@@ -13,7 +13,7 @@
             request
             [:div {:class "mt-10 flex flex-row items-center justify-center gap-x-6 gap-y-6"}
              (when-not (:user request)
-               [:a {:href  "/not-oauth/atproto"
+               [:a {:href  "/login"
                     :class (classes ["rounded-md"
                                      "bg-black"
                                      "px-3.5"
