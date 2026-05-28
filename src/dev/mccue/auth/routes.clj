@@ -290,8 +290,11 @@
                                                 "https://jvm.mccue.dev/oauth2/atproto/callback"
                                                 "http://127.0.0.1:8999/oauth2/atproto/callback")
                             :landing-uri      "/oauth2/atproto/landing"
-                            :pkce?            true})]
-    (-> (redirect-handler request)
+                            :pkce?            true})
+        response         (redirect-handler request)]
+    (-> (if (= (::oauth2/code response) "access_denied")
+          (response/redirect "/login")
+          response)
         (update :session dissoc ::oauth2/token-endpoint))))
 
 (defn get-atproto-landing-handler

@@ -297,7 +297,8 @@
                                (AuthorizationErrorResponse/.getErrorObject))]
           {:status  (ErrorObject/.getHTTPStatusCode error-object)
            :headers {"Content-Type" "text/plain; charset=utf-8"}
-           :body    (ErrorObject/.getDescription error-object)})
+           :body    (ErrorObject/.getDescription error-object)
+           ::code  (ErrorObject/.getCode error-object)})
 
         (nil? (get-authorization-code request))
         (no-auth-code-handler request)
