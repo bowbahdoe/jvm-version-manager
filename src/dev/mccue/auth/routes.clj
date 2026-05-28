@@ -234,13 +234,13 @@
    "client_uri"                 "https://jvm.mccue.dev"})
 
 ;;TODO: make client metadata route *just* /oauth-client-metadata.json
-(defonce boot-time-str
-         (str (-> (Instant/now)
-                  (Instant/.getEpochSecond))))
+#_(defonce boot-time-str
+           (str (-> (Instant/now)
+                    (Instant/.getEpochSecond))))
 
 (def production-client-id
-  (str "https://jvm.mccue.dev/oauth2/atproto/client-metadata.json"
-       "?serverboottime=" boot-time-str))
+  (str "https://jvm.mccue.dev/oauth-client-metadata.json"
+       #_#_"?serverboottime=" boot-time-str))
 
 (defn get-atproto-client-metadata-json-handler
   [system request]
@@ -398,7 +398,7 @@
      {:get (partial #'get-atproto-callback-handler system)}]
     ["/oauth2/atproto/landing"
      {:get (partial #'get-atproto-landing-handler system)}]
-    ["/oauth2/atproto/client-metadata.json"
+    ["/oauth-client-metadata.json"
      {:get (partial #'get-atproto-client-metadata-json-handler system)}]
     ["/login"
      {:get (partial #'get-login-handler system)}]]])
