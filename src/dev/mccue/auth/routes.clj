@@ -236,7 +236,7 @@
                 "/.well-known/oauth-authorization-server"))))
 
 (def atproto-scopes
-  "atproto repo:dev.mccue.module?action=create repo:app.bsky.actor.profile?action=update blob:application/java-archive account:email")
+  "atproto repo:dev.mccue.module?action=create repo:app.bsky.actor.profile?action=update&action=create blob:application/java-archive account:email")
 
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]
