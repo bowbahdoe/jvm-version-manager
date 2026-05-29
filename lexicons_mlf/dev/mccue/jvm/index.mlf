@@ -1,0 +1,24 @@
+/// A JVM module
+record index {
+    mandated! boolean,
+
+    /// Module Name
+    name!: string,
+
+    /// Target Platform
+    target_platform: string
+
+    /// Version
+    version: string,
+
+    /// Requires
+    requires: {
+        module!: string,
+        static!: boolean,
+        transitive!: boolean,
+        mandated!: boolean
+    }[],
+
+    /// Thread creation timestamp
+    createdAt!: Datetime,
+}

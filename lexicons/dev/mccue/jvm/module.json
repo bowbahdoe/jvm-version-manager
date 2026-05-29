@@ -1,0 +1,40 @@
+{
+  "id": "dev.mccue.jvm.module",
+  "lexicon": 1,
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A JVM Module published for wider consumption.",
+      "key": "any",
+      "record": {
+        "properties": {
+          "artifact": {
+            "accept": [
+              "application/zip",
+              "application/java-archive"
+            ],
+            "maxSize": 10000000,
+            "type": "blob"
+          },
+          "license": {
+            "description": "SPDX License String",
+            "type": "string"
+          },
+          "billOfMaterials": {
+            "description": "SBOM in CycloneDX format",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "datetime",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact",
+          "createdAt"
+        ],
+        "type": "object"
+      }
+    }
+  }
+}

@@ -135,7 +135,8 @@
                          :required true
                          :autocorrect "off"
                          :autocapitalize "off"
-                         :spellcheck"false"}]
+                         :autocomplete "username"
+                         :spellcheck "false"}]
                 [:input {:type "submit"
                          :class (classes ["outline-2" "cursor-pointer" "p-2"
                                           "hover:bg-blue-200"
@@ -238,7 +239,7 @@
                 "/.well-known/oauth-authorization-server"))))
 
 (def atproto-scopes
-  "atproto repo:dev.mccue.jvm.module repo:app.bsky.actor.profile?action=update&action=create blob:application/java-archive account:email")
+  "atproto repo:dev.mccue.jvm.module repo:dev.mccue.jvm.index blob:application/java-archive")
 
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]
@@ -355,7 +356,7 @@
                     :prompt "create")))
 
 (defn get-atproto-callback-handler
-  [system request]
+  [_ request]
   (let [token_endpoint   (get-in request [:session ::oauth2/token-endpoint])
         redirect-handler (oauth2/make-redirect-handler
                            {:id               :atproto
@@ -368,15 +369,16 @@
                             :pkce?            true})
         response         (redirect-handler request)]
     (-> (if (= (::oauth2/code response) "access_denied")
-          (response/redirect "/login")
-          response)
-        (update :session dissoc ::oauth2/token-endpoint))))
+          (-> (response/redirect "/login")
+              (update :session dissoc ::oauth2/token-endpoint)
+              (assoc :flash "Login attempt denied"))
+          response))))
 ;;TODO: bidirectional handle verification
 (defn handle-login-and-registration!
-  [db request did handle service-endpoint {:keys [token
-                                                  refresh-token
-                                                  scopes
-                                                  dpop-private-key]}]
+  [db request did handle service-endpoint token-endpoint {:keys [token
+                                                                 refresh-token
+                                                                 scopes
+                                                                 dpop-private-key]}]
   (jdbc/with-transaction [t db]
     (jdbc/execute! t (sql/format
                        {:insert-into :atproto.access_credential
@@ -400,13 +402,15 @@
                             (dissoc ::oauth2/atproto-handle)
                             (dissoc ::oauth2/atproto-did)
                             (dissoc ::oauth2/atproto-service-endpoint)
-                            (dissoc ::oauth2/access-tokens))))))
+                            (dissoc ::oauth2/access-tokens)
+                            (dissoc ::oauth2/token-endpoint))))))
 
 (defn get-atproto-landing-handler
   [{:system/keys [db]} request]
   (let [handle                  (get-in request [:session ::oauth2/atproto-handle])
         did                     (get-in request [:session ::oauth2/atproto-did])
         service-endpoint        (get-in request [:session ::oauth2/atproto-service-endpoint])
+        token-endpoint          (get-in request [:session ::oauth2/token-endpoint])
         access-tokens           (get-in request [:session ::oauth2/access-tokens :atproto])
         {:keys [sub]}           access-tokens]
     (cond
@@ -416,31 +420,31 @@
                                               (resolve-did-document))
             sub-service-endpoint          (-> sub-did-document
                                               (resolve-service-endpoint))]
-        (handle-login-and-registration! db request sub (resolve-handle sub-did-document) sub-service-endpoint access-tokens))
+        (handle-login-and-registration! db request sub (resolve-handle sub-did-document) sub-service-endpoint token-endpoint access-tokens))
 
       ;; Sign in as different account than we started flow with
       (not= sub did)
-      (let [sub-did-document              (-> sub
-                                              (resolve-did-document))
-            sub-service-endpoint          (-> sub-did-document
-                                              (resolve-service-endpoint))
-            authorization-server-endpoint (-> sub-service-endpoint
-                                              (resolve-service-info)
-                                              (resolve-authorization-server-endpoint)
-                                              (resolve-authorization-server-description))
-            original-auth-server          (-> service-endpoint
-                                              (resolve-service-info)
-                                              (resolve-authorization-server-endpoint)
-                                              (resolve-authorization-server-description))]
-        (if (not= (get authorization-server-endpoint "issuer")
-                  (get original-auth-server "issuer"))
+      (let [sub-did-document                 (-> sub
+                                                 (resolve-did-document))
+            sub-service-endpoint             (-> sub-did-document
+                                                 (resolve-service-endpoint))
+            authorization-server-description (-> sub-service-endpoint
+                                                 (resolve-service-info)
+                                                 (resolve-authorization-server-endpoint)
+                                                 (resolve-authorization-server-description))
+            original-auth-server-description (-> service-endpoint
+                                                 (resolve-service-info)
+                                                 (resolve-authorization-server-endpoint)
+                                                 (resolve-authorization-server-description))]
+        (if (not= (get authorization-server-description "issuer")
+                  (get original-auth-server-description "issuer"))
           ;; Auth server lied about did it can issue an access token for
           (response/redirect "/logout")
-          (handle-login-and-registration! db request sub (resolve-handle sub-did-document) sub-service-endpoint access-tokens)))
+          (handle-login-and-registration! db request sub (resolve-handle sub-did-document) "" sub-service-endpoint access-tokens)))
 
       ;; Got the same account as when we started
       :else
-      (handle-login-and-registration! db request sub handle service-endpoint access-tokens))))
+      (handle-login-and-registration! db request sub handle service-endpoint token-endpoint access-tokens))))
 
 
 

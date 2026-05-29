@@ -1,0 +1,35 @@
+{
+  "$type": "com.atproto.lexicon.schema",
+  "lexicon": 1,
+  "id": "dev.mccue.jvm.index",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An index of where one might find a particular module",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "providers"
+        ],
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "did"
+              ],
+              "properties": {
+                "did": {
+                  "type": "string",
+                  "format": "did"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

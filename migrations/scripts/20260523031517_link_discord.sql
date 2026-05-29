@@ -14,9 +14,6 @@ CREATE TABLE discord.linked_account
     discord_profile_image_png_base64 text        not null
 );
 
-ALTER TABLE identity."user"
-    DROP COLUMN discord_user_id;
-
 -- //@UNDO
 
 DROP TABLE discord.linked_account;

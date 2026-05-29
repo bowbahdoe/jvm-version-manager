@@ -9,6 +9,7 @@ check_cli_tools:
     clojure --version || echo "please install the clojure cli tools"
     jresolve --version || echo "please install jresolve"
     npx --version || echo "npm is needed for tailwind"
+    goat --version || echo "goat is needed to publish atproto schemas"
 
 # Downloads Postgresql Driver Jars needed for migrations
 download_postgres_drivers:
@@ -33,3 +34,10 @@ test:
 # Start a REPL to connect to for development
 nrepl:
     export $(cat .env | xargs) && clojure -A:dev -M -m nrepl.cmdline
+
+# Publish ATProto Lexicon Definitions
+publish_lexicons:
+    # goat account login --username mccue.dev --password ...
+    # (note to self: escape !s in password with \!)
+    goat lex publish
+
