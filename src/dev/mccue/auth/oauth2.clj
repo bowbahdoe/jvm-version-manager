@@ -3,14 +3,15 @@
   (:require [cheshire.core :as cheshire]
             [clj-http.client :as http]
             [clojure.string :as string]
+            [clojure.tools.logging :as log]
             [ring.util.request]
             [ring.util.request :as req]
             [ring.util.response :as resp])
   (:import (com.nimbusds.jose JWSAlgorithm)
-           (com.nimbusds.jose.jwk Curve ECKey)
+           (com.nimbusds.jose.jwk Curve ECKey JWK)
            (com.nimbusds.jose.jwk.gen ECKeyGenerator)
            (com.nimbusds.oauth2.sdk AccessTokenResponse AuthorizationCode AuthorizationCodeGrant AuthorizationErrorResponse
-                                    AuthorizationRequest$Builder
+                                    AuthorizationRequest AuthorizationRequest$Builder
                                     AuthorizationResponse
                                     ErrorObject
                                     OAuth2Error PushedAuthorizationErrorResponse PushedAuthorizationRequest
@@ -23,7 +24,7 @@
            (com.nimbusds.oauth2.sdk.http HTTPRequest HTTPResponse)
            (com.nimbusds.oauth2.sdk.id ClientID State)
            (com.nimbusds.oauth2.sdk.pkce CodeChallengeMethod CodeVerifier)
-           (com.nimbusds.oauth2.sdk.token Tokens)
+           (com.nimbusds.oauth2.sdk.token AccessToken Tokens)
            (com.nimbusds.openid.connect.sdk Nonce)
            (java.net URI)
            (java.time Instant)
@@ -53,12 +54,15 @@
         (.endpointURI (URI. (:authorize-uri profile))))
     (when (:login-hint profile)
       (.customParameter request-builder "login_hint" (into-array String [(:login-hint profile)])))
+    (when-let [mode (:prompt profile)]
+      (.customParameter request-builder "prompt" (into-array String [mode])))
     (when (:pkce? profile)
       (.codeChallenge request-builder ^CodeVerifier verifier CodeChallengeMethod/S256))
     (.build request-builder)))
 
 (defn- send-dpop-par-request
   [par-endpoint proof-factory auth-req nonce]
+  (log/info "About to send PAR Request: " (AuthorizationRequest/.toParameters auth-req))
   (let [par-req         (PushedAuthorizationRequest. (URI. par-endpoint) auth-req)
         http-req        (-> par-req (.toHTTPRequest))
         _               (HTTPRequest/.setDPoP http-req
@@ -123,6 +127,7 @@
                                      "&request_uri="
                                      (-> (PushedAuthorizationResponse/.toSuccessResponse par-res)
                                          (PushedAuthorizationSuccessResponse/.getRequestURI))))
+
                  (assoc :session (-> session'
                                      (assoc ::dpop {:key (str dpop-key)
                                                     :nonce (.getValue nonce)}))))))
@@ -253,7 +258,8 @@
         (let [tokens (AccessTokenResponse/.getTokens token-res)]
           [(-> {:token         (str (Tokens/.getAccessToken tokens))
                 :refresh-token (str (Tokens/.getRefreshToken tokens))
-                :extra-data    (Tokens/.getMetadata tokens)})
+                :scopes        (str (AccessToken/.getScope (Tokens/.getAccessToken tokens)))
+                :sub           (get (AccessTokenResponse/.getCustomParameters token-res) "sub")})
            nil])))
     [(-> (http/request (access-token-http-options profile request))
          (format-access-token))
@@ -274,7 +280,8 @@
 (defn- redirect-response [{:keys [id landing-uri]} session access-token]
   (-> (resp/redirect landing-uri)
       (assoc :session (-> session
-                          (assoc-in [::access-tokens id] access-token)
+                          (assoc-in [::access-tokens id] (merge access-token
+                                                                {:dpop-private-key (get-in session [::dpop :key])}))
                           (dissoc ::state ::code-verifier ::dpop)))))
 
 (defn make-redirect-handler

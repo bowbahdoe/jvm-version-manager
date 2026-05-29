@@ -2,7 +2,8 @@
   (:require [dev.mccue.jsonquery :as jsonquery]
             [dev.mccue.middleware :as middleware]
             [dev.mccue.page.helpers :as page-helpers :refer [classes]]
-            [dev.mccue.sidebar.components :as sidebar-components]))
+            [dev.mccue.sidebar.components :as sidebar-components]
+            [next.jdbc :as jdbc]))
 
 
 (defn index-handler
@@ -13,7 +14,12 @@
             request
             [:main
              [:div {:class (classes ["flex" "flex-col"])}
-              [:p "Test"]]])))
+              [:code [:pre (with-out-str
+                             (clojure.pprint/pprint
+                               (jdbc/execute!
+                                 db
+                                 ["SELECT * FROM identity.user WHERE id = ?"
+                                  (:user/id (:identity request))])))]]]])))
 
 
 

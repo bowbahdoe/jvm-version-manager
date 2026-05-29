@@ -142,7 +142,7 @@
                                           "focus-visible:bg-blue-200"
                                           "text-center"])
                          :value "Login"}]]]
-              [:a {:href "#"
+              [:a {:href "/oauth2/atproto/launch"
                    :class (classes ["flex" "flex-row" "s-2" "align-center"
                                     "outline-2" "cursor-pointer" "p-2"
                                     "hover:bg-red-200"
@@ -151,7 +151,7 @@
                [:img {:src "/bluesky.svg"
                       :class (classes ["size-[1em]" "self-center"])}]
                [:div {:class (classes "w-[1em]")}]
-               "Login with Bluesky"]]
+               "Signup"]]
              (when (:flash request)
                [:p {:class (classes ["text-red-500"])}
                 (:flash request)])]
@@ -193,13 +193,30 @@
   (or (get-did-dns atproto-handle)
       (get-did-https atproto-handle)))
 
-(defn resolve-service-endpoint
+(comment
+  (resolve-did-document (get-did "mccue.dev")))
+
+(defn resolve-did-document
   [did]
+  ;; TODO: did:web
   (try
-    (let [info (cheshire/parse-string-strict
-                (slurp (str "https://plc.directory/" did)))]
-      (get-in info ["service" 0 "serviceEndpoint"]))
+    (cheshire/parse-string-strict
+      (slurp (str "https://plc.directory/" did)))
     (catch Exception _ nil)))
+
+(defn resolve-handle
+  [did-document]
+  (->> (get did-document "alsoKnownAs")
+       (filter #(string/starts-with? % "at://"))
+       (map #(string/replace-first % "at://" ""))
+       (first)))
+
+(defn resolve-service-endpoint
+  [did-document]
+  (-> (->> (get did-document "service")
+           (filter #(= (% "id") "#atproto_pds"))
+           (first))
+      (get "serviceEndpoint")))
 
 (defn resolve-service-info
   [service-endpoint]
@@ -219,7 +236,7 @@
                 "/.well-known/oauth-authorization-server"))))
 
 (def atproto-scopes
-  "atproto repo:dev.mccue.module?action=create blob:application/java-archive account:email")
+  "atproto repo:dev.mccue.module?action=create repo:app.bsky.actor.profile?action=update blob:application/java-archive account:email")
 
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]
@@ -265,43 +282,75 @@
           (:body)
           (cheshire/parse-string-strict)
           (get "client_id")))))
+(defn atproto-register
+  [request]
+  (let [launch-handler                   (oauth2/make-launch-handler
+                                           {:authorize-uri    'authorization_endpoint
+                                            :access-token-uri 'token_endpoint
+                                            :client-id        @atproto-client-id
+                                            :scopes           [atproto-scopes]
+                                            :launch-uri       (:uri request)
+                                            :redirect-uri     (if (environment/production?)
+                                                                "https://jvm.mccue.dev/oauth2/atproto/callback"
+                                                                "http://127.0.0.1:8999/oauth2/atproto/callback")
+                                            :landing-uri      "/oauth2/atproto/landing"
+                                            :pkce?            true
+                                            :pushed-authorization-request-endpoint 'par_endpoint
+                                            :prompt           "create"})]))
+
+(defn atproto-launch
+  [request & {:keys [authorization-server-endpoint service-endpoint handle did prompt]}]
+  (let [authorization-server-description (resolve-authorization-server-description authorization-server-endpoint)
+        authorization_endpoint           (get authorization-server-description "authorization_endpoint")
+        token_endpoint                   (get authorization-server-description "token_endpoint")
+        par_endpoint                     (get authorization-server-description "pushed_authorization_request_endpoint")
+        launch-handler                   (oauth2/make-launch-handler
+                                           {:authorize-uri    authorization_endpoint
+                                            :access-token-uri token_endpoint
+                                            :client-id        @atproto-client-id
+                                            :scopes           [atproto-scopes]
+                                            :launch-uri       (:uri request)
+                                            :redirect-uri     (if (environment/production?)
+                                                                "https://jvm.mccue.dev/oauth2/atproto/callback"
+                                                                "http://127.0.0.1:8999/oauth2/atproto/callback")
+                                            :landing-uri      "/oauth2/atproto/landing"
+                                            :pkce?            true
+                                            :pushed-authorization-request-endpoint par_endpoint
+                                            :login-hint                            handle
+                                            :prompt                                prompt})]
+
+    (-> (launch-handler request)
+        (update :session assoc ::oauth2/atproto-service-endpoint service-endpoint)
+        (update :session assoc ::oauth2/token-endpoint token_endpoint)
+        (update :session assoc ::oauth2/atproto-did did)
+        (update :session assoc ::oauth2/atproto-handle handle))))
 
 (defn get-atproto-launch-handler
   [_ request]
-  (let [handle (get-in request [:query-params "handle"])]
-    (if-let [did (get-did handle)]
-      (if-let [service-endpoint (resolve-service-endpoint did)]
-        (if-let [service-info (resolve-service-info service-endpoint)]
-          (let [authorization-server-endpoint    (resolve-authorization-server-endpoint service-info)
-                authorization-server-description (resolve-authorization-server-description authorization-server-endpoint)
-                authorization_endpoint           (get authorization-server-description "authorization_endpoint")
-                token_endpoint                   (get authorization-server-description "token_endpoint")
-                par_endpoint                     (get authorization-server-description "pushed_authorization_request_endpoint")
-                launch-handler                   (oauth2/make-launch-handler
-                                                   {:authorize-uri    authorization_endpoint
-                                                    :access-token-uri token_endpoint
-                                                    :client-id        @atproto-client-id
-                                                    :scopes           [atproto-scopes]
-                                                    :launch-uri       (:uri request)
-                                                    :redirect-uri     (if (environment/production?)
-                                                                        "https://jvm.mccue.dev/oauth2/atproto/callback"
-                                                                        "http://127.0.0.1:8999/oauth2/atproto/callback")
-                                                    :landing-uri      "/oauth2/atproto/landing"
-                                                    :pkce?            true
-                                                    :pushed-authorization-request-endpoint par_endpoint
-                                                    :login-hint                            handle})]
-
-            (-> (launch-handler request)
-                (update :session assoc ::oauth2/atproto-service-endpoint service-endpoint)
-                (update :session assoc ::oauth2/token-endpoint token_endpoint)
-                (update :session assoc ::oauth2/atproto-did did)
-                (update :session assoc ::oauth2/atproto-handle handle)))
+  (if-let [handle (get-in request [:query-params "handle"])]
+    (if-let [did (get-did (or handle "mccue.dev"))] ;; Sign up with whatever I use!
+      (if-let [did-document (resolve-did-document did)]
+        (if-let [service-endpoint (resolve-service-endpoint did-document)]
+          (if-let [service-info (resolve-service-info service-endpoint)]
+            (let [authorization-server-endpoint    (resolve-authorization-server-endpoint service-info)]
+              (atproto-launch request
+                              :authorization-server-endpoint authorization-server-endpoint
+                              :service-endpoint service-endpoint
+                              :handle handle
+                              :did did))
+            (-> (response/redirect "/login")
+                (assoc :flash (str "Issue resolving service info for " handle " on " service-endpoint))))
           (-> (response/redirect "/login")
-              (assoc :flash (str "Issue resolving service info for " handle " on " service-endpoint))))
+              (assoc :flash (str "Issue resolving service endpoint for " handle))))
         (-> (response/redirect "/login")
             (assoc :flash (str "Issue resolving service endpoint for " handle))))
       (-> (response/redirect "/login")
-          (assoc :flash (str "No Atmosphere account found for " handle))))))
+          (assoc :flash (str "No Atmosphere account found for " handle))))
+    (atproto-launch request
+                    :authorization-server-endpoint (if (environment/production?)
+                                                     "https://bsky.social"
+                                                     "https://eurosky.social" #_"https://pds.rip")
+                    :prompt "create")))
 
 (defn get-atproto-callback-handler
   [system request]
@@ -320,6 +369,36 @@
           (response/redirect "/login")
           response)
         (update :session dissoc ::oauth2/token-endpoint))))
+;;TODO: bidirectional handle verification
+(defn handle-login-and-registration!
+  [db request did handle service-endpoint {:keys [token
+                                                  refresh-token
+                                                  scopes
+                                                  dpop-private-key]}]
+  (jdbc/with-transaction [t db]
+    (jdbc/execute! t (sql/format
+                       {:insert-into :atproto.access_credential
+                        :columns [:access_token :refresh_token :service_endpoint :did :dpop_private_key :scopes]
+                        :values [[token refresh-token service-endpoint did dpop-private-key scopes]]
+                        :on-conflict [:did]
+                        :do-update-set [:access_token :refresh_token :service_endpoint :dpop_private_key :scopes]}))
+    (jdbc/execute! t (sql/format
+                       {:insert-into :identity.user
+                        :columns     [:atproto_did :atproto_handle :profile_image_png_base64]
+                        :values      [[did handle (duke/duke->png-base64 (Duke. (Seed. (hash did))))]]
+                        :on-conflict [:atproto_did]
+                        :do-update-set [:atproto_handle]})))
+  (let [{:user/keys [id]} (jdbc/execute-one! db (sql/format
+                                                  {:select [:id]
+                                                   :from   :identity.user
+                                                   :where  [:= :atproto_did did]}))]
+    (-> (response/redirect "/")
+        (assoc :session (-> (:session request)
+                            (assoc :user_id id)
+                            (dissoc ::oauth2/atproto-handle)
+                            (dissoc ::oauth2/atproto-did)
+                            (dissoc ::oauth2/atproto-service-endpoint)
+                            (dissoc ::oauth2/access-tokens))))))
 
 (defn get-atproto-landing-handler
   [{:system/keys [db]} request]
@@ -327,32 +406,41 @@
         did                     (get-in request [:session ::oauth2/atproto-did])
         service-endpoint        (get-in request [:session ::oauth2/atproto-service-endpoint])
         access-tokens           (get-in request [:session ::oauth2/access-tokens :atproto])
-        {:keys [token
-                refresh-token]} access-tokens]
-    (jdbc/with-transaction [t db]
-      (jdbc/execute! t (sql/format
-                         {:insert-into :atproto.access_credential
-                          :columns [:access_token :refresh_token :service_endpoint :did]
-                          :values [[token refresh-token service-endpoint did]]
-                          :on-conflict [:did]
-                          :do-update-set [:access_token :refresh_token :service_endpoint]}))
-      (jdbc/execute! t (sql/format
-                         {:insert-into :identity.user
-                          :columns     [:atproto_did :atproto_handle :profile_image_png_base64]
-                          :values      [[did handle (duke/duke->png-base64 (Duke. (Seed. (hash did))))]]
-                          :on-conflict [:atproto_did]
-                          :do-update-set [:atproto_handle]})))
-    (let [{:user/keys [id]} (jdbc/execute-one! db (sql/format
-                                                    {:select [:id]
-                                                     :from   :identity.user
-                                                     :where  [:= :atproto_did did]}))]
-      (-> (response/redirect "/")
-          (assoc :session (-> (:session request)
-                              (assoc :user_id id)
-                              (dissoc ::oauth2/atproto-handle)
-                              (dissoc ::oauth2/atproto-did)
-                              (dissoc ::oauth2/atproto-service-endpoint)
-                              (dissoc ::oauth2/access-tokens)))))))
+        {:keys [sub]}           access-tokens]
+    (cond
+      ;; Fresh Sign Up
+      (nil? did)
+      (let [sub-did-document              (-> sub
+                                              (resolve-did-document))
+            sub-service-endpoint          (-> sub-did-document
+                                              (resolve-service-endpoint))]
+        (handle-login-and-registration! db request sub (resolve-handle sub-did-document) sub-service-endpoint access-tokens))
+
+      ;; Sign in as different account than we started flow with
+      (not= sub did)
+      (let [sub-did-document              (-> sub
+                                              (resolve-did-document))
+            sub-service-endpoint          (-> sub-did-document
+                                              (resolve-service-endpoint))
+            authorization-server-endpoint (-> sub-service-endpoint
+                                              (resolve-service-info)
+                                              (resolve-authorization-server-endpoint)
+                                              (resolve-authorization-server-description))
+            original-auth-server          (-> service-endpoint
+                                              (resolve-service-info)
+                                              (resolve-authorization-server-endpoint)
+                                              (resolve-authorization-server-description))]
+        (if (not= (get authorization-server-endpoint "issuer")
+                  (get original-auth-server "issuer"))
+          ;; Auth server lied about did it can issue an access token for
+          (response/redirect "/logout")
+          (handle-login-and-registration! db request sub (resolve-handle sub-did-document) sub-service-endpoint access-tokens)))
+
+      ;; Got the same account as when we started
+      :else
+      (handle-login-and-registration! db request sub handle service-endpoint access-tokens))))
+
+
 
 (defn routes
   [system]

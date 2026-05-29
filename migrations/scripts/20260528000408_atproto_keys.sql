@@ -5,6 +5,8 @@ CREATE TABLE atproto.access_credential(
     access_token text not null,
     refresh_token text not null,
     service_endpoint text not null,
+    dpop_private_key text not null,
+    scopes text not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
