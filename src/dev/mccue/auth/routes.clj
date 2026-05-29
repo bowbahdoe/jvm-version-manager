@@ -145,12 +145,14 @@
               [:a {:href "/oauth2/atproto/launch"
                    :class (classes ["flex" "flex-row" "s-2" "align-center"
                                     "outline-2" "cursor-pointer" "p-2"
-                                    "hover:bg-red-200"
+                                    "hover:bg-blue-200"
                                     "focus-visible:bg-blue-200"
-                                    "text-center"])}
+                                    "text-center"
+                                    "justify-center"])}
                [:img {:src "/bluesky.svg"
                       :class (classes ["size-[1em]" "self-center"])}]
-               [:div {:class (classes "w-[1em]")}]
+               [:div {:class (classes ["w-[1em]"])}]
+               [:div {:class (classes ["self-center"])}]
                "Signup"]]
              (when (:flash request)
                [:p {:class (classes ["text-red-500"])}
@@ -236,7 +238,7 @@
                 "/.well-known/oauth-authorization-server"))))
 
 (def atproto-scopes
-  "atproto repo:dev.mccue.module repo:app.bsky.actor.profile?action=update&action=create blob:application/java-archive account:email")
+  "atproto repo:dev.mccue.jvm.module repo:app.bsky.actor.profile?action=update&action=create blob:application/java-archive account:email")
 
 (defn atproto-client-doc
   [& {:keys [redirect-uris]}]

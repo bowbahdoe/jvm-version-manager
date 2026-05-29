@@ -61,7 +61,7 @@
   [system]
   (let [ws-client (create-websocket-client system
                                            (URI. (str (System/getenv "JETSTREAM_URL")
-                                                      "/subscribe?wantedCollections=dev.mccue.module")))]
+                                                      "/subscribe?wantedCollections=dev.mccue.jvm.module")))]
     (WebSocketClient/.connectBlocking ws-client)
     ws-client))
 
