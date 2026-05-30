@@ -14,21 +14,48 @@
 (def create-session-xrpc
   "/xrpc/com.atproto.server.createSession")
 
+(def refresh-session-xrpc
+  "/xrpc/com.atproto.server.refreshSession")
+
 (def put-record-xrpc
   "/xrpc/com.atproto.repo.putRecord")
 
 (def get-blob-xrpc
   "/xrpc/com.atproto.sync.getBlob")
 
+(def handle (System/getenv "ATPROTO_INDEXER_HANDLE"))
+
 (def did
   (delay
     (diddy/get-did
-      (System/getenv "ATPROTO_INDEXER_HANDLE"))))
+      handle)))
 
 (def service-endpoint
   (delay
     (diddy/resolve-service-endpoint
       (diddy/resolve-did-document @did))))
+
+(comment
+  (def session (-> (http/post
+                     (str @service-endpoint create-session-xrpc)
+                     {:headers {"Content-Type" "application/json"}
+                      :body (json/generate-string {"identifier" (System/getenv "ATPROTO_INDEXER_HANDLE")
+                                                   "password"   (System/getenv "ATPROTO_INDEXER_APP_PASSWORD")})})
+                   (:body)
+                   (json/parse-string-strict keyword)))
+  (println session)
+  (let [{:keys [accessJwt
+                refreshJwt]} session]
+    (-> (http/post
+          (str @service-endpoint refresh-session-xrpc)
+          {:headers {"Content-Type" "application/json"
+                     "Authentication" (str "Bearer " accessJwt)}
+           :body (json/generate-string {"accessJwt"  accessJwt
+                                        "refreshJwt" refreshJwt
+                                        "handle"     handle
+                                        "did"        @did})})
+        (:body)
+        (json/parse-string-strict keyword))))
 
 
 (defn handle-module-create!
@@ -66,11 +93,8 @@
                       rkey
                       ", version in module-info=null"))
 
-
-
           :else
           (do
-
             (jdbc/execute! db (sql/format
                                 {:insert-into :repository.module_provider
                                  :columns     [:atproto_did :module_name]
@@ -81,15 +105,15 @@
                                                         {:select [:atproto_did]
                                                          :from   :repository.module_provider
                                                          :where  [:= :module_name (:name module-info)]}))
-                  _ (throw (Exception. "todo"))
                   ;; TODO: need to use the refresh token
-                  {:keys [accessJwt]} (-> (http/post
-                                            (str @service-endpoint create-session-xrpc)
-                                            {:headers {"Content-Type" "application/json"}
-                                             :body (json/generate-string {"identifier" (System/getenv "ATPROTO_INDEXER_HANDLE")
-                                                                          "password"   (System/getenv "ATPROTO_INDEXER_APP_PASSWORD")})})
-                                          (:body)
-                                          (json/parse-string-strict keyword))]
+                  {:keys [accessJwt
+                          refreshJwt]} (-> (http/post
+                                             (str @service-endpoint create-session-xrpc)
+                                             {:headers {"Content-Type" "application/json"}
+                                              :body (json/generate-string {"identifier" (System/getenv "ATPROTO_INDEXER_HANDLE")
+                                                                           "password"   (System/getenv "ATPROTO_INDEXER_APP_PASSWORD")})})
+                                           (:body)
+                                           (json/parse-string-strict keyword))]
               (http/post
                 (str @service-endpoint put-record-xrpc)
                 {:body (json/generate-string
