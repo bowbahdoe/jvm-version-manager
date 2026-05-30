@@ -2,11 +2,12 @@
 --;
 CREATE TABLE IF NOT EXISTS repository.module_provider
 (
-    id          uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    module_name text        not null,
-    atproto_did text        not null,
-    created_at  timestamptz not null default now(),
-    updated_at  timestamptz not null default now(),
+    id             uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    module_name    text        not null,
+    --module_version text,
+    atproto_did    text        not null,
+    created_at     timestamptz not null default now(),
+    updated_at     timestamptz not null default now(),
     unique (module_name, atproto_did)
 );
 
