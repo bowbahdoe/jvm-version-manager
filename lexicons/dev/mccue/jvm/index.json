@@ -6,7 +6,7 @@
     "main": {
       "type": "record",
       "description": "An index of where one might find a particular module",
-      "key": "tid",
+      "key": "any",
       "record": {
         "type": "object",
         "required": [

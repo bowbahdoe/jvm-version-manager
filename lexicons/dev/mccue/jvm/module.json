@@ -24,6 +24,11 @@
             "description": "SBOM in CycloneDX format",
             "type": "string"
           },
+          "indexMe": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this module should is intented for listing on public indexes"
+          },
           "createdAt": {
             "format": "datetime",
             "type": "string"

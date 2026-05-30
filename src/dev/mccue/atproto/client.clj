@@ -119,12 +119,12 @@
 (comment
   (def client (for-user
                 (user/db)
-                "019e70c9-7d6a-72cb-ae30-c44ffe64f6a8"))
+                "019e70a9-076c-7971-ab11-d758d6e31620" #_"019e70c9-7d6a-72cb-ae30-c44ffe64f6a8"))
 
-  (doseq [artifact [(artifact/maven-central-artifact
-                      :groupId "org.slf4j"
-                      :artifactId "slf4j-api"
-                      :version "2.0.18")
+  (doseq [artifact [#_#_(artifact/maven-central-artifact
+                          :groupId "org.slf4j"
+                          :artifactId "slf4j-api"
+                          :version "2.0.18")
                     (artifact/maven-central-artifact
                       :groupId "org.slf4j"
                       :artifactId "slf4j-simple"
