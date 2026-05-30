@@ -22,6 +22,7 @@
         org.clj-commons/byte-streams           {:mvn/version "0.3.4"}
         org.java-websocket/Java-WebSocket      {:mvn/version "1.6.0"}
         nrepl/nrepl                            {:mvn/version "1.7.0"}
+        camel-snake-kebab/camel-snake-kebab    {:mvn/version "0.4.3"}
         ;; OAuth Client
         com.nimbusds/oauth2-oidc-sdk           {:mvn/version "11.37.2"}
         buddy/buddy-auth                       {:mvn/version "3.0.323"}

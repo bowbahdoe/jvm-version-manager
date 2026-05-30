@@ -3,6 +3,47 @@
   "lexicon": 1,
   "id": "dev.mccue.jvm.index",
   "defs": {
+    "moduleVersion": {
+      "type": "object",
+      "required": [
+        "version",
+        "module"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "module": {
+          "ref": "com.atproto.repo.strongRef",
+          "type": "ref",
+          "description": "A reference to the module in the provider repo"
+        },
+        "moduleInfo": {
+          "ref": "dev.mccue.jvm.moduleInfo",
+          "type": "ref"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "required": [
+        "did"
+      ],
+      "properties": {
+        "did": {
+          "type": "string",
+          "format": "did"
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "dev.mccue.jvm.index#moduleVersion"
+          }
+        }
+      }
+    },
     "main": {
       "type": "record",
       "description": "An index of where one might find a particular module",
@@ -16,16 +57,8 @@
           "providers": {
             "type": "array",
             "items": {
-              "type": "object",
-              "required": [
-                "did"
-              ],
-              "properties": {
-                "did": {
-                  "type": "string",
-                  "format": "did"
-                }
-              }
+              "type": "ref",
+              "ref": "dev.mccue.jvm.index#provider"
             }
           }
         }

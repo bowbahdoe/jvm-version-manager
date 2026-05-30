@@ -2,32 +2,70 @@
   "id": "dev.mccue.jvm.module",
   "lexicon": 1,
   "defs": {
+    "variant": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "accept": [
+            "application/zip",
+            "application/java-archive"
+          ],
+          "maxSize": 10000000,
+          "type": "blob"
+        },
+        "license": {
+          "description": "SPDX License String",
+          "type": "string"
+        },
+        "billOfMaterials": {
+          "description": "SBOM in CycloneDX format",
+          "type": "string"
+        },
+        "sourcedFrom": {
+          "type": "union",
+          "refs": [
+            "com.atproto.repo.strongRef",
+            "dev.mccue.jvm.module#url"
+          ],
+          "description": "A reference to where this module was copied from."
+        },
+        "operatingSystem": {
+          "type": "string",
+          "knownValues": ["windows", "macos", "linux"],
+          "description": "The operating system that the module is specific to."
+        },
+        "cpuArchitecture": {
+          "type": "string",
+          "knownValues": ["amd64", "aarch64"],
+          "description": "The cpu architecture that the module is specific to."
+        }
+      }
+    },
+    "url": {
+      "type": "string",
+      "description": "Url where a module was sourced from. May be a package url such as pkg:maven/org.slf4j/slf4j-api@2.0.18 or a \"normal\" url like https://download.oracle.com/java/25/latest/jdk-25_windows-x64_bin.zip."
+    },
     "main": {
       "type": "record",
       "description": "A JVM Module published for wider consumption.",
       "key": "any",
       "record": {
         "properties": {
-          "artifact": {
-            "accept": [
-              "application/zip",
-              "application/java-archive"
-            ],
-            "maxSize": 10000000,
-            "type": "blob"
-          },
-          "license": {
-            "description": "SPDX License String",
-            "type": "string"
-          },
-          "billOfMaterials": {
-            "description": "SBOM in CycloneDX format",
-            "type": "string"
+          "variants": {
+            "type": "array",
+            "minLength": 1,
+            "description": "Variants of the same module at the same 'version'",
+            "items": {
+              "type": "ref",
+              "ref": "dev.mccue.jvm.module#variant"
+            }
           },
           "indexMe": {
             "type": "boolean",
-            "default": false,
-            "description": "Whether this module should is intented for listing on public indexes"
+            "default": false
           },
           "createdAt": {
             "format": "datetime",
@@ -35,7 +73,7 @@
           }
         },
         "required": [
-          "artifact",
+          "variants",
           "createdAt"
         ],
         "type": "object"

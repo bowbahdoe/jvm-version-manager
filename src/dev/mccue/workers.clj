@@ -1,19 +1,18 @@
 (ns dev.mccue.workers
   (:require [clojure.tools.logging :as log]
-            [dev.mccue.auth.workers :as auth-workers]
             [dev.mccue.atproto.workers :as atproto-workers]
-            [honey.sql :as sql]
-            [next.jdbc :as jdbc]))
+            [dev.mccue.auth.workers :as auth-workers]
+            [honey.sql :as sql]))
 
 (defn handle-job!
   [system job-type payload]
   (let [handlers (merge (auth-workers/workers)
                         (atproto-workers/workers))
         handler  (get handlers job-type)]
-    (log/info "Handling Job: " job-type)
+    (log/info "Handling Job:" job-type)
     (if handler
       (handler system job-type payload)
-      (log/error "Could not find handler for Job: " job-type))))
+      (log/error "Could not find handler for Job:" job-type))))
 
 (defn manual-trigger
   [db & {:keys [table job-type id]}]
