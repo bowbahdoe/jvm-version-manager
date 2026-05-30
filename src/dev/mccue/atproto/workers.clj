@@ -36,17 +36,17 @@
   (let [publisher-did (get-in payload [:event :did])]
     (if-not (get-in payload [:event :commit :record :indexMe])
       (log/info "indexMe is false. Skipping indexing module." publisher-did)
-      (let [blob-link           (get-in payload [:event :commit :record :artifact :ref :$link])
-            blob-response       (http/get
-                                  (str @service-endpoint get-blob-xrpc
-                                       "?cid=" blob-link
-                                       "&did=" publisher-did)
-                                  {:as :byte-array})
-            module-info         (artifact/module-info-from-archive-bytes
-                                  (:body blob-response))
-            module-name         (:name module-info)
-            module-version      (:version module-info)
-            rkey                (get-in payload [:event :commit :rkey])
+      (let [blob-link             (get-in payload [:event :commit :record :artifact :ref :$link])
+            blob-response         (http/get
+                                    (str @service-endpoint get-blob-xrpc
+                                         "?cid=" blob-link
+                                         "&did=" publisher-did)
+                                    {:as :byte-array})
+            module-info           (artifact/module-info-from-archive-bytes
+                                    (:body blob-response))
+            module-name           (:name module-info)
+            module-version        (:version module-info)
+            rkey                  (get-in payload [:event :commit :rkey])
             [rkey-module-name
              rkey-module-version] (string/split rkey #":")]
         (cond
@@ -81,6 +81,8 @@
                                                         {:select [:atproto_did]
                                                          :from   :repository.module_provider
                                                          :where  [:= :module_name (:name module-info)]}))
+                  _ (throw (Exception. "todo"))
+                  ;; TODO: need to use the refresh token
                   {:keys [accessJwt]} (-> (http/post
                                             (str @service-endpoint create-session-xrpc)
                                             {:headers {"Content-Type" "application/json"}
