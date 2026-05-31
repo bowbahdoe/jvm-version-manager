@@ -103,7 +103,7 @@
 (defn start-index-publisher!
   [{:system/keys [db]}]
   (chime.core/chime-at
-    (chime.core/periodic-seq (Instant/now) (Duration/ofMinutes 5))
+    (chime.core/periodic-seq (Instant/now) (Duration/ofHours 1))
     (partial #'publish-index db)))
 
 (defn stop-index-publisher!
