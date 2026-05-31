@@ -26,6 +26,7 @@
         ;; OAuth Client
         com.nimbusds/oauth2-oidc-sdk           {:mvn/version "11.37.2"}
         buddy/buddy-auth                       {:mvn/version "3.0.323"}
+        jarohen/chime                          {:mvn/version "0.3.3"}
         dev.mccue/duke                         {:local/root "jars/duke-2025.11.09-uber.jar"}}
  :paths ["src" "res"]
  :aliases {:dev   {:extra-paths ["dev"]

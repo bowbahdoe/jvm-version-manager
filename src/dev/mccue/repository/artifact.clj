@@ -109,28 +109,33 @@
           procured))))
 
 (defn module-info-from-archive-bytes
-  [bytes]
-  (with-open [zais (ZipArchiveInputStream. (ByteArrayInputStream. bytes))]
-    (let [module-info-entries  (loop [entries []]
-                                 (let [entry (ArchiveInputStream/.getNextEntry zais)]
-                                   (if (nil? entry)
-                                     entries
-                                     (let [name (ArchiveEntry/.getName entry)]
-                                       (if (or (= name "module-info.class")
-                                               (= name "classes/module-info.class")
-                                               (re-matches #"META-INF/versions/([0-9]+)/module-info.class"
-                                                           name))
-                                         (recur (conj entries
-                                                      {:name name
-                                                       :bytes (InputStream/.readAllBytes zais)}))
-                                         (recur entries))))))]
-      (cond
-        (empty? module-info-entries)
-        (throw (ex-info "No module-info.class in archive" {}))
+  ([bytes & {:keys [no-module-info-found-cb
+                    more-than-one-module-info-found-cb]}]
+   (with-open [zais (ZipArchiveInputStream. (ByteArrayInputStream. bytes))]
+     (let [module-info-entries  (loop [entries []]
+                                  (let [entry (ArchiveInputStream/.getNextEntry zais)]
+                                    (if (nil? entry)
+                                      entries
+                                      (let [name (ArchiveEntry/.getName entry)]
+                                        (if (or (= name "module-info.class")
+                                                (= name "classes/module-info.class")
+                                                (re-matches #"META-INF/versions/([0-9]+)/module-info.class"
+                                                            name))
+                                          (recur (conj entries
+                                                       {:name name
+                                                        :bytes (InputStream/.readAllBytes zais)}))
+                                          (recur entries))))))]
+       (cond
+         (empty? module-info-entries)
+         (if no-module-info-found-cb
+           (no-module-info-found-cb)
+           (throw (ex-info "No module-info.class in archive" {})))
 
-        (> (count module-info-entries) 1)
-        (throw (ex-info "More than one module-info.class in archive" {}))
+         (> (count module-info-entries) 1)
+         (if more-than-one-module-info-found-cb
+           (more-than-one-module-info-found-cb module-info-entries)
+           (throw (ex-info "More than one module-info.class in archive" {})))
 
-        :else
-        (mi/from-bytes (:bytes (first module-info-entries)))))))
+         :else
+         (mi/from-bytes (:bytes (first module-info-entries))))))))
 

@@ -6,6 +6,7 @@
             [dev.mccue.workers :as workers]
             [dev.mccue.session-store :as session-store]
             [dev.mccue.jetstream :as jetstream]
+            [dev.mccue.index-publisher :as index-publisher]
             [next.jdbc :as jdbc]
             [next.jdbc.connection :as connection]
             [proletarian.protocols :as protocols]
@@ -84,12 +85,13 @@
     (worker/create-queue-worker
       db
       (partial #'workers/handle-job! system)
-      {:proletarian/log #'logger
-       :proletarian/serializer (reify protocols/Serializer
-                                 (encode [_ data]
-                                   (cheshire/generate-string data))
-                                 (decode [_ data-string]
-                                   (cheshire/parse-string data-string keyword)))})
+      {:proletarian/log          #'logger
+       :proletarian/serializer   (reify protocols/Serializer
+                                   (encode [_ data]
+                                     (cheshire/generate-string data))
+                                   (decode [_ data-string]
+                                     (cheshire/parse-string data-string keyword)))
+       :proletarian/worker-threads 8})
     (worker/start!)))
 
 (defn stop-worker!
@@ -108,6 +110,14 @@
   [jetstream-websocket-client]
   (jetstream/stop-jetstream-websocket-client! jetstream-websocket-client))
 
+(defn start-index-publisher!
+  [system]
+  (index-publisher/start-index-publisher! system))
+
+(defn stop-index-publisher!
+  [index-publisher]
+  (index-publisher/stop-index-publisher! index-publisher))
+
 (defn start!
   []
   (let [db (start-db! {})
@@ -116,16 +126,19 @@
         server (start-server! {:system/db db
                                :system/session-store session-store})
         jetstream-websocket-client (start-jetstream-websocket-client! {:system/db db})
-        worker (start-worker! {:system/db db})]
+        worker (start-worker! {:system/db db})
+        index-publisher (start-index-publisher! {:system/db db})]
     {:system/db db
      :system/admin-db admin-db
      :system/session-store session-store
      :system/server server
      :system/worker worker
+     :system/index-publisher index-publisher
      :system/jetstream-websocket-client jetstream-websocket-client}))
 
 (defn stop!
-  [{:system/keys [server worker db jetstream-websocket-client]}]
+  [{:system/keys [server worker db index-publisher jetstream-websocket-client]}]
+  (stop-index-publisher! index-publisher)
   (stop-worker! worker)
   (stop-jetstream-websocket-client! jetstream-websocket-client)
   (stop-server! server)

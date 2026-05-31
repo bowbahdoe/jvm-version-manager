@@ -156,63 +156,75 @@
                                                (str ":" version)))
                                   :record {:indexMe   true
                                            :createdAt (str (OffsetDateTime/now))
-                                           :variants (for [{:keys [blob target-platform]} blob+infos]
+                                           :variants (for [{:keys [blob] :as info} blob+infos]
                                                        {:artifact blob
-                                                        :operatingSystem (when-let [tp target-platform]
+                                                        :operatingSystem (when-let [tp (:target-platform
+                                                                                         (:module-info info))]
                                                                            (cond
-                                                                             (= (string/starts-with? tp "windows"))
+                                                                             (string/starts-with? tp "windows")
                                                                              "windows"
 
-                                                                             (= (string/starts-with? tp "macos"))
+                                                                             (string/starts-with? tp "macos")
                                                                              "macos"
                                                                              :else
                                                                              "linux"))
-                                                        :cpuArchitecture (or (when-let [tp target-platform]
+                                                        :cpuArchitecture (or (when-let [tp (:target-platform
+                                                                                             (:module-info info))]
                                                                                (println (str name
                                                                                              (when-let [version version]
                                                                                                (str ":" version)))
                                                                                         "-" tp)
                                                                                (cond
-                                                                                 (= (string/ends-with? tp "amd64"))
+                                                                                 (string/ends-with? tp "amd64")
                                                                                  "amd64"
 
-                                                                                 (= (string/ends-with? tp "aarch64"))
+                                                                                 (string/ends-with? tp "aarch64")
                                                                                  "aarch64"
                                                                                  :else
                                                                                  nil))
                                                                              (println "NO TARGET PLATFORM!"))})})))
 
 
-  (doseq [artifact [(artifact/maven-central-artifact
-                      :groupId "org.slf4j"
-                      :artifactId "slf4j-api"
-                      :version "2.0.18")
-                    (artifact/maven-central-artifact
-                      :groupId "org.slf4j"
-                      :artifactId "slf4j-simple"
-                      :version "2.0.18")
-                    (artifact/maven-central-artifact
-                      :groupId "dev.mccue"
-                      :artifactId "jdbc"
-                      :version "2025.10.07")
-                    (artifact/maven-central-artifact
-                      :groupId "dev.mccue"
-                      :artifactId "json"
-                      :version "2024.11.20")
-                    (artifact/maven-central-artifact
-                      :groupId "org.jspecify"
-                      :artifactId "jspecify"
-                      :version "1.0.0")]]
+  (doseq [artifact [(assoc
+                      (artifact/maven-central-artifact
+                        :groupId "org.slf4j"
+                        :artifactId "slf4j-api"
+                        :version "2.0.18")
+                      :purl "pkg:maven/org.slf4j/slf4j-api@2.0.18")
+                    (assoc
+                      (artifact/maven-central-artifact
+                        :groupId "org.slf4j"
+                        :artifactId "slf4j-simple"
+                        :version "2.0.18")
+                      :purl "pkg:maven/org.slf4j/slf4j-simple@2.0.18")
+                    (assoc
+                      (artifact/maven-central-artifact
+                        :groupId "dev.mccue"
+                        :artifactId "jdbc"
+                        :version "2025.10.07")
+                      :purl "pkg:maven/dev.mccue/jdbc@2025.10.07")
+                    (assoc
+                      (artifact/maven-central-artifact
+                        :groupId "dev.mccue"
+                        :artifactId "json"
+                        :version "2024.11.20")
+                      :purl "pkg:maven/dev.mccue/json@2024.11.20")
+                    (assoc
+                      (artifact/maven-central-artifact
+                        :groupId "org.jspecify"
+                        :artifactId "jspecify"
+                        :version "1.0.0")
+                      :purl "pkg:maven/org.jspecify/jspecify@1.0.0")]]
 
     (Thread/sleep 5000)
-    (let [slf4j-api (with-open [is (io/input-stream (:url artifact))]
-                      (.readAllBytes is))
-          mi (dev.mccue.repository.artifact/module-info-from-archive-bytes slf4j-api)]
+    (let [artifact-bytes (with-open [is (io/input-stream (:url artifact))]
+                           (.readAllBytes is))
+          mi (dev.mccue.repository.artifact/module-info-from-archive-bytes artifact-bytes)]
+      (println "Uploading Blob ")
       (let [{:keys [body]}
             (com-atproto-repo-uploadBlob client
-                                         :body slf4j-api
+                                         :body artifact-bytes
                                          :content-type "application/java-archive")]
-        (println body)
 
         (com-atproto-repo-putRecord client
                                     :collection "dev.mccue.jvm.module"
@@ -222,6 +234,7 @@
                                     :record {:variants
                                              [{:artifact   (-> (cheshire/parse-string-strict body)
                                                                (get "blob"))
+                                               :sourcedFrom {"url" (:purl artifact)}
 
                                                :license    "Apache-2.0"}]
                                              :indexMe   true
