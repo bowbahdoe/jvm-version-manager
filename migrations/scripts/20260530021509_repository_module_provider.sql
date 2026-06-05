@@ -1,61 +1,71 @@
 -- // repository module provider
---;
-CREATE TABLE IF NOT EXISTS repository.jetstream_module
+
+CREATE TABLE atproto.record
 (
-    id                uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    record            jsonb       not null,
-    provider_did      text        not null,
-    rkey              text        not null,
-    record_created_at timestamptz not null default now(),
-    created_at        timestamptz not null default now(),
-    updated_at        timestamptz not null default now()
+    id         uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    did        text        not null,
+    collection text        not null,
+    rkey       text        not null,
+    rev        text        not null,
+    cid        text        not null,
+    record     jsonb       not null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (did, collection, rkey)
 );
 
-CREATE TRIGGER set_repository_jetstream_module_updated_at
+CREATE TRIGGER set_atproto_record_updated_at
     BEFORE UPDATE
-    ON repository.jetstream_module
+    ON atproto.record
     FOR EACH ROW
 EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 
-CREATE TABLE IF NOT EXISTS repository.jetstream_module_variant
+CREATE TABLE atproto.dev_mccue_jvm_module
 (
-    id                                 uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    jetstream_module_id                uuid        not null references repository.jetstream_module (id)
-        on update restrict
-        on delete restrict,
-    artifact_cid                       text        not null,
-    license                            text,
-    bill_of_materials                  text,
-    cpu_architecture                   text,
-    operating_system                   text,
-    sourced_from_url                   text,
-    sourced_from_cid                   text,
-    sourced_from_aturi                text,
+    id                uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    atproto_record_id uuid        not null unique
+        references atproto.record (id) on delete cascade,
 
-    number_of_module_infos_in_artifact integer,
+    index_me          boolean     not null default false,
+    record_created_at timestamptz not null,
 
-    -- Does the record rkey test.example:123 match what is actually in the module info?
-    rkey_module_name                   text,
-    artifact_module_name               text,
-    module_name_matches                boolean,
-
-    rkey_module_version                text,
-    artifact_module_version            text,
-    module_version_matches             boolean,
-
-    -- Is target platform metadata in the module believable?
-    artifact_target_platform           text,
-
-    -- license_string_is_well_formed      boolean,
-
-    -- If all validations pass, we put it into our table of modules
-    -- which is where we can get metadata like requires/exports/etc. from.
-    module_id                          uuid references repository.module (id),
-    created_at                         timestamptz not null default now(),
-    updated_at                         timestamptz not null default now()
+    created_at        timestamptz not null default now(),
+    updated_at        timestamptz not null default now(),
+    unique (atproto_record_id)
 );
 
-ALTER TABLE repository.jetstream_module_variant
+CREATE TRIGGER set_atproto_dev_mccue_jvm_module_updated_at
+    BEFORE UPDATE
+    ON atproto.dev_mccue_jvm_module
+    FOR EACH ROW
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
+
+CREATE TABLE atproto.dev_mccue_jvm_module_variant
+(
+    id                      uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    dev_mccue_jvm_module_id uuid        not null references atproto.dev_mccue_jvm_module (id)
+        on delete cascade,
+    license                 text,
+    sourced_from_url        text,
+    sourced_from_cid        text,
+    sourced_from_aturi      text,
+    artifact_cid_link       text        not null,
+    artifact_size           bigint      not null,
+    created_at              timestamptz not null default now(),
+    updated_at              timestamptz not null default now()
+);
+
+-- We will relate modules via CID
+CREATE INDEX ON atproto.dev_mccue_jvm_module_variant (artifact_cid_link);
+
+CREATE TRIGGER set_atproto_dev_mccue_jvm_module_variant_updated_at
+    BEFORE UPDATE
+    ON atproto.dev_mccue_jvm_module_variant
+    FOR EACH ROW
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
+
+
+ALTER TABLE atproto.dev_mccue_jvm_module_variant
     ADD CONSTRAINT source_is_url_or_hardref
         CHECK ((
                    sourced_from_url IS NULL AND
@@ -71,22 +81,47 @@ ALTER TABLE repository.jetstream_module_variant
                    sourced_from_aturi IS NOT NULL
                    ));
 
-CREATE TRIGGER set_repository_jetstream_module_variant_updated_at
+CREATE TABLE atproto.dev_mccue_jvm_module_variant_error
+(
+    id                              uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    dev_mccue_jvm_module_variant_id uuid        not null references atproto.dev_mccue_jvm_module_variant (id)
+        on delete cascade,
+    error                           text        not null,
+    created_at                      timestamptz not null default now(),
+    updated_at                      timestamptz not null default now()
+);
+
+CREATE TRIGGER set_atproto_dev_mccue_jvm_module_variant_error_updated_at
     BEFORE UPDATE
-    ON repository.jetstream_module_variant
+    ON atproto.dev_mccue_jvm_module_variant_error
+    FOR EACH ROW
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
+
+CREATE TABLE atproto.dev_mccue_jvm_module_variant_attribute
+(
+    id                              uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    dev_mccue_jvm_module_variant_id uuid        not null references atproto.dev_mccue_jvm_module_variant (id)
+        on delete cascade,
+    name                            text        not null,
+    value                           text        not null,
+    created_at                      timestamptz not null default now(),
+    updated_at                      timestamptz not null default now(),
+    unique (name, value)
+);
+
+CREATE TRIGGER set_atproto_dev_mccue_jvm_module_variant_attribute_updated_at
+    BEFORE UPDATE
+    ON atproto.dev_mccue_jvm_module_variant_attribute
     FOR EACH ROW
 EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 
 CREATE TABLE IF NOT EXISTS repository.published_module
 (
-    id                          uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    module_info                 text,
-    module_name                 text        not null,
-    module_version              text        not null,
-    jetstream_module_variant_id uuid        not null references repository.jetstream_module_variant (id)
-        on update restrict on delete restrict,
-    created_at                  timestamptz not null default now(),
-    updated_at                  timestamptz not null default now()
+    id          uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    module_id   uuid        not null references repository.module (id),
+    atproto_did text        not null,
+    created_at  timestamptz not null default now(),
+    updated_at  timestamptz not null default now()
 );
 
 CREATE TRIGGER set_repository_published_module_updated_at
@@ -96,28 +131,51 @@ CREATE TRIGGER set_repository_published_module_updated_at
 EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 
 -- // insert trigger
-CREATE OR REPLACE FUNCTION repository_jetstream_module_variant_checkModule_insert_function()
+CREATE FUNCTION atproto_record_processModule_function()
     RETURNS TRIGGER AS
 $$
 BEGIN
     INSERT INTO proletarian.job(job_type, payload)
-    VALUES (':repository.jetstream_module_variant/checkModule', row_to_json(NEW));
+    VALUES (':atproto.record/processModule', row_to_json(NEW));
     return NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER repository_jetstream_module_variant_checkModule_insert_trigger
-    AFTER INSERT
-    ON repository.jetstream_module_variant
+CREATE TRIGGER atproto_record_processModule_trigger
+    AFTER INSERT OR UPDATE
+    ON atproto.record
     FOR EACH ROW
-EXECUTE PROCEDURE repository_jetstream_module_variant_checkModule_insert_function();
+EXECUTE PROCEDURE atproto_record_processModule_function();
+
+
+CREATE FUNCTION atproto_dev_mccue_jvm_module_importModule_function()
+    RETURNS TRIGGER AS
+$$
+BEGIN
+    INSERT INTO proletarian.job(job_type, payload)
+    VALUES (':atproto.dev_mccue_jvm_module/importModule', row_to_json(NEW));
+    return NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER atproto_dev_mccue_jvm_module_importModule_trigger
+    AFTER INSERT
+    ON atproto.dev_mccue_jvm_module
+    FOR EACH ROW
+EXECUTE PROCEDURE atproto_dev_mccue_jvm_module_importModule_function();
 
 -- //@UNDO
-DROP TRIGGER repository_jetstream_module_variant_checkModule_insert_trigger ON repository.jetstream_module_variant;
-DROP FUNCTION repository_jetstream_module_variant_checkModule_insert_function;
+DROP TRIGGER atproto_record_processModule_trigger ON atproto.record;
+DROP FUNCTION atproto_record_processModule_function;
+
+DROP TRIGGER atproto_dev_mccue_jvm_module_importModule_trigger ON atproto.dev_mccue_jvm_module;
+DROP FUNCTION atproto_dev_mccue_jvm_module_importModule_function;
 
 DROP TABLE repository.published_module;
-DROP TABLE repository.jetstream_module_variant;
-DROP TABLE repository.jetstream_module;
+DROP TABLE atproto.dev_mccue_jvm_module_variant_error;
+DROP TABLE atproto.dev_mccue_jvm_module_variant;
+DROP TABLE atproto.dev_mccue_jvm_module;
+
+DROP TABLE atproto.record;
 
 

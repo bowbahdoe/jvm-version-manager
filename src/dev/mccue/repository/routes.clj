@@ -175,6 +175,29 @@
        :provides                provides
        :uses                    uses})))
 
+(defn get-module-info-from-cid
+  [db cid]
+  (jsonquery/execute-one!
+    db
+    {:select [:name
+              :version
+              :target_platform
+              [:requires {:select [:module]
+                          :from :repository.module_requires
+                          :join-on [:id :module_id]}]
+              [:exports {:select [:package :to]
+                         :from :repository.module_exports
+                         :join-on [:id :module_id]}]
+              [:uses {:select [:service]
+                      :from :repository.module_uses
+                      :join-on [:id :module_id]}]
+              [:provides {:select [:service :with]
+                          :from :repository.module_provides
+                          :join-on [:id :module_id]}]]
+     :from :repository.module
+     :where [:= :cid cid]}))
+
+
 (defn module-table
   [db to-render]
   [:div {:style (page-helpers/css ["max-width: 800px"
@@ -293,6 +316,24 @@
                                              "justify-content: center"])}
              (module-table db to-render)]))))))
 
+(defn module-cid-handler
+  [{:system/keys [db]} request]
+  (let [cid (get (:path-params request) :cid)
+        provider-id (get (:query-params request) "provider-id")]
+    (let [to-render (get-module-info db
+                                     :name name
+                                     #_#_:version version
+                                     :provider-id provider-id)]
+      (page-helpers/page-response
+        :head
+        [:script {:src "/force-graph.js"}]
+        :body
+        (list
+          [:div {:style (page-helpers/css ["padding: 20px"
+                                           "display: flex"
+                                           "justify-content: center"])}
+           (module-table db to-render)])))))
+
 (defn module-set-details-handler
   [{:system/keys [db]} request]
   (let [name (get (:path-params request) :name)
@@ -373,7 +414,8 @@
     ["/api/modules" {:get (partial #'get-modules-handler system)}]
     ["/search" {:get  (partial #'get-search-handler system)}]
     ["/search/partial" {:get {:handler (partial #'get-search-partial-handler system)}}]
-    ["/module/:name" {:get        (partial #'module-details-handler system)}]
+    #_["/module/:name" {:get (partial #'module-details-handler system)}]
+    #_["/module/:cid" {:get (partial #'module-details-handler system)}]
 
     ["/module-set/:name" {:get (partial #'module-set-details-handler system)}]
     ["/api/publish" {:post {:handler (partial #'publish-handler system)}}]]])

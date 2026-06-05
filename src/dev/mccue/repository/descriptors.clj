@@ -51,6 +51,10 @@
                 :hashes {"sha256" "421362edb7c8e1b97db9faf43806d2a8850067afc97c2f1bf9bc5cdcdfc9c0b6"}
                 :cmds ["vegeta.exe"]
                 :target-platform "windows-amd64"
+                :version "12.13.0"}
+               {:url "https://github.com/tsenart/vegeta/releases/download/v12.13.0/vegeta_12.13.0_darwin_arm64.tar.gz"
+                :cmds ["vegeta"]
+                :target-platform "macos-aarch64"
                 :version "12.13.0"}]})
 
 (defn ^:descriptor clojure

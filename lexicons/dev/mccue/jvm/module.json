@@ -2,7 +2,21 @@
   "id": "dev.mccue.jvm.module",
   "lexicon": 1,
   "defs": {
-
+    "attribute": {
+      "type": "object",
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
     "variant": {
       "type": "object",
       "required": [
@@ -17,12 +31,15 @@
           "maxSize": 10000000,
           "type": "blob"
         },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "dev.mccue.module#attribute"
+          }
+        },
         "license": {
           "description": "SPDX License String",
-          "type": "string"
-        },
-        "billOfMaterials": {
-          "description": "SBOM in CycloneDX format",
           "type": "string"
         },
         "sourcedFrom": {
@@ -32,18 +49,6 @@
             "dev.mccue.jvm.module#url"
           ],
           "description": "A reference to where this module was copied from."
-        },
-        "operatingSystem": {
-          "type": "ref",
-          "ref": "dev.mccue.jvm.operatingSystem"
-        },
-        "cpuArchitecture": {
-          "type": "ref",
-          "ref": "dev.mccue.jvm.cpuArchitecture"
-        },
-        "moduleInfo": {
-          "ref": "dev.mccue.jvm.moduleInfo",
-          "type": "ref"
         }
       }
     },

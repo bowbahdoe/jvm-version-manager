@@ -19,8 +19,9 @@
            (java.net URI)
            (java.time OffsetDateTime)))
 
+;; TODO: rename exports To to
 (defn refetch-credentials
-  [db user-id]
+  [db did]
   (jdbc/execute-one!
     db
     (sql/format
@@ -30,16 +31,18 @@
                    :service_endpoint
                    :did
                    :dpop_private_key]
-       :from      :identity.user
-       :left-join [:atproto.access_credential
-                   [:= :atproto.access_credential.did :identity.user.atproto_did]]
-       :where     [:= :identity.user.id (if (string? user-id)
-                                          (parse-uuid user-id)
-                                          user-id)]})))
+       :from      :atproto.access_credential
+       :where     [:= :atproto.access_credential.did did]})))
 
 (defn refresh-credentials!
   [db user-id]
   'TODO)
+
+(defn for-did
+  [db did]
+  (let [credentials (atom (refetch-credentials db did))]
+    {::refetch-credentials (partial refetch-credentials db did)
+     ::credentials-atom    credentials}))
 
 (defn for-user
   [db user-id]
@@ -119,16 +122,33 @@
                                  :method       "POST"}})))
 
 (comment
-  (def client (for-user
+  (def client (for-did
                 (user/db)
-                #_"019e70a9-076c-7971-ab11-d758d6e31620" ;;mccue.dev
-                "019e70c9-7d6a-72cb-ae30-c44ffe64f6a8"))
+                "did:plc:dt7fth2hmap6wya7uyyl2g3v" ;;mccue.dev
+                #_"did:plc:2oip3ubsbe2pc7tmbnwsm3i7"))
 
   (def oracle-jdk
     ((requiring-resolve 'dev.mccue.repository.jmod/procure)
      ((requiring-resolve 'dev.mccue.repository.descriptors/oracle-jdk))))
   (println 3)
 
+  (def just
+    ((requiring-resolve 'dev.mccue.repository.jmod/procure)
+     ((requiring-resolve 'dev.mccue.repository.descriptors/just))))
+
+  (def jq
+    ((requiring-resolve 'dev.mccue.repository.jmod/procure)
+     {:name "jq"
+      :type :jmod
+      :artifacts [{:url "file:///Users/emccue/Development/curler/jq.jmod"}]}))
+
+  (def vegeta
+    ((requiring-resolve 'dev.mccue.repository.jmod/procure)
+     ((requiring-resolve 'dev.mccue.repository.descriptors/vegeta))))
+
+
+  (defn consume-many
+    [i])
 
   (let [name-version-blob+infos (for [[name infos] (group-by (comp :name :module-info) oracle-jdk)]
                                   (let []
@@ -148,7 +168,7 @@
 
     (doseq [[name version blob+infos] name-version-blob+infos]
       (println "About to put: " name)
-      (Thread/sleep 5000)
+      (Thread/sleep 1000)
       (com-atproto-repo-putRecord client
                                   :collection "dev.mccue.jvm.module"
                                   :rkey (str name
@@ -156,67 +176,11 @@
                                                (str ":" version)))
                                   :record {:indexMe   true
                                            :createdAt (str (OffsetDateTime/now))
-                                           :variants (for [{:keys [blob] :as info} blob+infos]
-                                                       {:artifact blob
-                                                        :operatingSystem (when-let [tp (:target-platform
-                                                                                         (:module-info info))]
-                                                                           (cond
-                                                                             (string/starts-with? tp "windows")
-                                                                             "windows"
-
-                                                                             (string/starts-with? tp "macos")
-                                                                             "macos"
-                                                                             :else
-                                                                             "linux"))
-                                                        :cpuArchitecture (or (when-let [tp (:target-platform
-                                                                                             (:module-info info))]
-                                                                               (println (str name
-                                                                                             (when-let [version version]
-                                                                                               (str ":" version)))
-                                                                                        "-" tp)
-                                                                               (cond
-                                                                                 (string/ends-with? tp "amd64")
-                                                                                 "amd64"
-
-                                                                                 (string/ends-with? tp "aarch64")
-                                                                                 "aarch64"
-                                                                                 :else
-                                                                                 nil))
-                                                                             (println "NO TARGET PLATFORM!"))})})))
-
-
-  (doseq [artifact [(assoc
-                      (artifact/maven-central-artifact
-                        :groupId "org.slf4j"
-                        :artifactId "slf4j-api"
-                        :version "2.0.18")
-                      :purl "pkg:maven/org.slf4j/slf4j-api@2.0.18")
-                    (assoc
-                      (artifact/maven-central-artifact
-                        :groupId "org.slf4j"
-                        :artifactId "slf4j-simple"
-                        :version "2.0.18")
-                      :purl "pkg:maven/org.slf4j/slf4j-simple@2.0.18")
-                    (assoc
-                      (artifact/maven-central-artifact
-                        :groupId "dev.mccue"
-                        :artifactId "jdbc"
-                        :version "2025.10.07")
-                      :purl "pkg:maven/dev.mccue/jdbc@2025.10.07")
-                    (assoc
-                      (artifact/maven-central-artifact
-                        :groupId "dev.mccue"
-                        :artifactId "json"
-                        :version "2024.11.20")
-                      :purl "pkg:maven/dev.mccue/json@2024.11.20")
-                    (assoc
-                      (artifact/maven-central-artifact
-                        :groupId "org.jspecify"
-                        :artifactId "jspecify"
-                        :version "1.0.0")
-                      :purl "pkg:maven/org.jspecify/jspecify@1.0.0")]]
-
-    (Thread/sleep 5000)
+                                           :variants  (for [{:keys [blob] :as info} blob+infos]
+                                                        {:artifact        blob})})))
+  (ingest {:url "file:///Users/emccue/Development/curler/jq.jmod"})
+  (defn ingest
+    [artifact]
     (let [artifact-bytes (with-open [is (io/input-stream (:url artifact))]
                            (.readAllBytes is))
           mi (dev.mccue.repository.artifact/module-info-from-archive-bytes artifact-bytes)]
@@ -234,11 +198,60 @@
                                     :record {:variants
                                              [{:artifact   (-> (cheshire/parse-string-strict body)
                                                                (get "blob"))
-                                               :sourcedFrom {"url" (:purl artifact)}
-
-                                               :license    "Apache-2.0"}]
+                                               :sourcedFrom {"url" (:purl artifact)}}]
                                              :indexMe   true
-                                             :createdAt (str (OffsetDateTime/now))})))))
+                                             :createdAt (str (OffsetDateTime/now))}))))
+
+    (doseq [artifact (:artifacts  (dev.mccue.repository.descriptors/vegeta))]
+      (ingest (assoc artifact :purl (:url artifact))))
+
+    (ingest (assoc
+              (artifact/maven-central-artifact
+                :groupId "com.fasterxml.jackson.core"
+                :artifactId "jackson-annotations"
+                :version "2.22")
+              :purl "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.22"))
+
+    (doseq [artifact [(assoc
+                        (artifact/maven-central-artifact
+                          :groupId "org.slf4j"
+                          :artifactId "slf4j-api"
+                          :version "2.0.18")
+                        :purl "pkg:maven/org.slf4j/slf4j-api@2.0.18")
+                      (assoc
+                        (artifact/maven-central-artifact
+                          :groupId "org.slf4j"
+                          :artifactId "slf4j-simple"
+                          :version "2.0.18")
+                        :purl "pkg:maven/org.slf4j/slf4j-simple@2.0.18")
+                      (assoc
+                        (artifact/maven-central-artifact
+                          :groupId "dev.mccue"
+                          :artifactId "jdbc"
+                          :version "2025.10.07")
+                        :purl "pkg:maven/dev.mccue/jdbc@2025.10.07")
+                      (assoc
+                        (artifact/maven-central-artifact
+                          :groupId "dev.mccue"
+                          :artifactId "json"
+                          :version "2024.11.20")
+                        :purl "pkg:maven/dev.mccue/json@2024.11.20")
+                      (assoc
+                        (artifact/maven-central-artifact
+                          :groupId "org.jspecify"
+                          :artifactId "jspecify"
+                          :version "1.0.0")
+                        :purl "pkg:maven/org.jspecify/jspecify@1.0.0")
+                      (assoc
+                        (artifact/maven-central-artifact
+                          :groupId "dev.mccue"
+                          :artifactId "symbol"
+                          :version "2025.06.06")
+                        :purl "pkg:maven/dev.mccue/symbol@2025.06.06")]]
+
+      (Thread/sleep 5000)
+      (ingest artifact)))
+
 (comment
   (defn from-credentials
     [credential])

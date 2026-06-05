@@ -276,7 +276,7 @@
     (atproto-launch request
                     :authorization-server-endpoint (if (environment/production?)
                                                      "https://bsky.social"
-                                                     "https://eurosky.social" #_"https://pds.rip")
+                                                     #_"https://eurosky.social" "https://pds.rip")
                     :prompt "create")))
 
 (defn get-atproto-callback-handler

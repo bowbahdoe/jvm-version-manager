@@ -1,9 +1,11 @@
 (ns dev.mccue.index-publisher
-  (:require [cheshire.core :as json]
+  (:require [camel-snake-kebab.core :as csk]
+            [cheshire.core :as json]
             [chime.core]
             [clj-http.client :as http]
             [clojure.tools.logging :as log]
             [dev.mccue.atproto.diddy :as diddy]
+            [dev.mccue.jsonquery :as jsonquery]
             [honey.sql :as sql]
             [next.jdbc :as jdbc])
   (:import (java.lang AutoCloseable)
@@ -32,45 +34,107 @@
       (diddy/resolve-did-document @did))))
 
 
+(defn- all-module-info-partial-query
+  []
+  [:name
+   :cid
+   :version
+   :target_platform
+   :synthetic
+   :mandated
+   :open
+   [:exports
+    {:select [:package
+              :mandated
+              :synthetic
+              [:to {:select [:module]
+                    :from :repository.module_exports_to
+                    :join-on [:id :module_exports_id]}]]
+     :from :repository.module_exports
+     :join-on [:id :module_id]}]
+   [:requires
+    {:select [:module
+              :version
+              :static
+              :transitive
+              :mandated
+              :synthetic]
+     :from :repository.module_requires
+     :join-on [:id :module_id]}]
+   [:uses
+    {:select [:service]
+     :from :repository.module_uses
+     :join-on [:id :module_id]}]
+   [:provides
+    {:select [:service :with]
+     :from :repository.module_provides
+     :join-on [:id :module_id]}]
+   [:packages
+    {:select [:package]
+     :from :repository.module_package
+     :join-on [:id :module_id]}]
+   [:hashes {:select [:module
+                      :algorithm
+                      :hash]
+             :from :repository.module_hash
+             :join-on [:id :module_id]}]])
+
+(comment)
+
+(defn gen-index-info
+  [db]
+  (let [q (jsonquery/execute!
+            db
+            {:select [^:single [:module {:select (all-module-info-partial-query)
+                                         :from :repository.module
+                                         :join-on [:module_id :id]}]
+                      :atproto_did]
+             :from   :repository.published_module})
+        modules (-> (for [[module-name info] (group-by (comp :name :module) q)]
+                      {:module-name module-name
+                       :providers   (for [[provider-did info]    (group-by :atproto_did info)]
+                                      {:did provider-did
+                                       :versions (for [[version modules] (group-by :version (map :module info))]
+                                                   {:version version
+                                                    :variants (for [module modules]
+                                                                {:module {:cid (:cid module)
+                                                                          :did provider-did}
+                                                                 :moduleInfo (-> module
+                                                                                 (dissoc :cid)
+                                                                                 (update-keys csk/->camelCase)
+                                                                                 (->> (filter (fn [[_ v]] (if (boolean? v) v (seq v)))))
+                                                                                 (->> (into {})))})})})}))]
+    modules))
+
+
 (defn publish-index
   [db time]
   (log/info "About to publish updates to the index.")
-  (let [published-modules (jdbc/execute! db ["SELECT
-                                                   DISTINCT repository.published_module.module_name,
-                                                            repository.jetstream_module.provider_did
-                                                FROM repository.published_module
-                                                LEFT JOIN repository.jetstream_module_variant
-                                                  ON repository.published_module.jetstream_module_variant_id = repository.jetstream_module_variant.id
-                                                LEFT JOIN repository.jetstream_module
-                                                  ON repository.jetstream_module_variant.jetstream_module_id = repository.jetstream_module.id"])
-        name->dids         (-> (group-by :published_module/module_name published-modules)
-                               (update-vals #(sort (set (map :jetstream_module/provider_did %)))))
+  (let [modules              (gen-index-info db)
         {:keys [accessJwt
                 refreshJwt]} (-> (http/post
                                    (str @service-endpoint create-session-xrpc)
                                    {:headers {"Content-Type" "application/json"}
-                                    :body (json/generate-string {"identifier" (System/getenv "ATPROTO_INDEXER_HANDLE")
-                                                                 "password"   (System/getenv "ATPROTO_INDEXER_APP_PASSWORD")})})
+                                    :body    (json/generate-string {"identifier" (System/getenv "ATPROTO_INDEXER_HANDLE")
+                                                                    "password"   (System/getenv "ATPROTO_INDEXER_APP_PASSWORD")})})
                                  (:body)
                                  (json/parse-string-strict keyword))
         createdAt (str (OffsetDateTime/now))]
-       (println name->dids)
-       (doseq [[name dids] name->dids]
-         (log/info "publishing index for" name)
-         (http/post
-           (str @service-endpoint put-record-xrpc)
-           {:body (json/generate-string
+    (doseq [{:keys [module-name providers]} modules]
+      (log/info "publishing index for" module-name)
+      (http/post
+        (str @service-endpoint put-record-xrpc)
+        {:body    (json/generate-string
                     {:repo       @did
-                     :rkey       name
+                     :rkey       module-name
                      :collection "dev.mccue.jvm.index"
-                     :record     {"$type" "dev.mccue.jvm.index"
+                     :record     {"$type"     "dev.mccue.jvm.index"
                                   "createdAt" createdAt
-                                  "providers" (for [did dids]
-                                                {"did" did})}})
-            :headers {"Authorization" (str "Bearer " accessJwt)
-                      "Content-Type"  "application/json"
-                      "Accept"  "application/json"}})
-         (log/info "Finished publishing index for" name)))
+                                  "providers" providers}})
+         :headers {"Authorization" (str "Bearer " accessJwt)
+                   "Content-Type"  "application/json"
+                   "Accept"        "application/json"}})
+      (log/info "Finished publishing index for" module-name)))
 
 
   #_(let [providers (jdbc/execute! db (sql/format

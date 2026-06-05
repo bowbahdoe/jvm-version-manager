@@ -13,6 +13,9 @@
             [proletarian.worker :as worker]
             [ring.adapter.jetty :as jetty])
   (:import (com.zaxxer.hikari HikariDataSource)
+           (io.github.bucket4j Bucket)
+           (java.time Duration)
+           (java.util.function Function)
            (net.ttddyy.dsproxy.listener.logging SLF4JLogLevel)
            (net.ttddyy.dsproxy.support ProxyDataSourceBuilder)
            (org.eclipse.jetty.server Server)))
@@ -118,13 +121,25 @@
   [index-publisher]
   (index-publisher/stop-index-publisher! index-publisher))
 
+(defn start-api-rate-limiter!
+  []
+  (-> (Bucket/builder)
+      (.addLimit ^Function (fn [limit]
+                             (-> limit
+                                 (.capacity 50)
+                                 (.refillGreedy 10 (Duration/ofSeconds 1)))))
+      (.build)))
+
+
 (defn start!
   []
   (let [db (start-db! {})
         admin-db (start-admin-db! {})
         session-store (start-session-store! {:system/db db})
+        api-rate-limiter (start-api-rate-limiter!)
         server (start-server! {:system/db db
-                               :system/session-store session-store})
+                               :system/session-store session-store
+                               :system/api-rate-limiter api-rate-limiter})
         jetstream-websocket-client (start-jetstream-websocket-client! {:system/db db})
         worker (start-worker! {:system/db db})
         index-publisher (start-index-publisher! {:system/db db})]
@@ -134,7 +149,8 @@
      :system/server server
      :system/worker worker
      :system/index-publisher index-publisher
-     :system/jetstream-websocket-client jetstream-websocket-client}))
+     :system/jetstream-websocket-client jetstream-websocket-client
+     :system/api-rate-limiter api-rate-limiter}))
 
 (defn stop!
   [{:system/keys [server worker db index-publisher jetstream-websocket-client]}]

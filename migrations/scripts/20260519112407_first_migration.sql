@@ -127,9 +127,9 @@ CREATE SCHEMA repository;
 CREATE TABLE repository.artifact
 (
     id         uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
-    sha256     text,
+    cid        text,
     data       bytea       not null,
-    unique (sha256),
+    unique (cid),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
@@ -182,26 +182,18 @@ CREATE TABLE IF NOT EXISTS repository.module
 (
     id              uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
     name            text        not null,
-    version         text        not null,
-    target_platform text        not null,
-    provider_id     uuid,
+    version         text,
+    target_platform text,
+    open            boolean     not null,
     mandated        boolean     not null,
     synthetic       boolean     not null,
-    module_info     text        not null,
-    mvn_repository  text,
-    mvn_groupId     text,
-    mvn_artifactId  text,
-    mvn_version     text,
-    mvn_classifier  text,
-    type            text,
-    sha256          text        not null unique,
+    cid             text unique,
     created_at      timestamptz not null default now(),
-    updated_at      timestamptz not null default now(),
-    unique (name, version, target_platform, provider_id),
-    FOREIGN KEY (sha256) REFERENCES repository.artifact (sha256)
-        on update restrict
-        on delete restrict
+    updated_at      timestamptz not null default now()
 );
+
+CREATE INDEX ON repository.module (cid);
+
 CREATE TRIGGER set_repository_module_updated_at
     BEFORE UPDATE
     ON repository.module
@@ -252,14 +244,27 @@ CREATE TABLE IF NOT EXISTS repository.module_exports
     id        uuid    NOT NULL DEFAULT uuidv7() PRIMARY KEY,
     module_id uuid    not null,
     package   text    not null,
-    "to"      text,
     mandated  boolean not null,
     synthetic boolean not null,
-    unique (module_id, package, "to"),
+    unique (module_id, package),
     FOREIGN KEY (module_id) REFERENCES repository.module (id)
         on update restrict
         on delete restrict
 );
+--;
+CREATE TABLE IF NOT EXISTS repository.module_exports_to
+(
+    id                uuid NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    module_exports_id uuid not null,
+    module           text not null,
+    unique (module_exports_id, module),
+    FOREIGN KEY (module_exports_id) REFERENCES repository.module_exports (id)
+        on update restrict
+        on delete restrict
+);
+
+CREATE INDEX on repository.module_exports_to(module_exports_id);
+
 --;
 CREATE TABLE IF NOT EXISTS repository.module_package
 (
@@ -510,6 +515,8 @@ DROP TABLE repository.module_set;
 DROP TABLE repository.module_hash;
 
 DROP TABLE repository.module_package;
+
+DROP TABLE repository.module_exports_to;
 
 DROP TABLE repository.module_exports;
 

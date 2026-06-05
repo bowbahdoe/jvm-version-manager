@@ -8,6 +8,7 @@
             [dev.mccue.auth.routes :as auth-routes]
             [dev.mccue.chat.routes :as chat-routes]
             [dev.mccue.consume.routes :as consume-routes]
+            [dev.mccue.home.routes :as home-routes]
             [dev.mccue.import.routes :as import-routes]
             [dev.mccue.index.routes :as index-routes]
             [dev.mccue.page.helpers :as page-helpers]
@@ -32,6 +33,7 @@
                         (auth-routes/routes system)
                         (chat-routes/routes system)
                         (consume-routes/routes system)
+                        (home-routes/routes system)
                         (import-routes/routes system)
                         (index-routes/routes system)
                         (page-routes/routes system)

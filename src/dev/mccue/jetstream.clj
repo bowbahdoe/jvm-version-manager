@@ -4,6 +4,8 @@
             [honey.sql :as sql]
             [next.jdbc :as jdbc])
   (:import (java.net URI)
+           (java.util.concurrent CountDownLatch)
+           (java.util.concurrent.atomic AtomicBoolean)
            (org.java_websocket.client WebSocketClient)))
 
 (defn- on-open
@@ -59,9 +61,10 @@
 
 (defn start-jetstream-websocket-client!
   [system]
-  (let [ws-client (create-websocket-client system
-                                           (URI. (str (System/getenv "JETSTREAM_URL")
-                                                      "/subscribe?wantedCollections=dev.mccue.jvm.module")))]
+  (let [ws-client        (create-websocket-client system
+                                                  (URI. (str (System/getenv "JETSTREAM_URL")
+                                                             "/subscribe?wantedCollections=dev.mccue.jvm.module")))]
+    (log/info "Starting websocket client")
     (WebSocketClient/.connectBlocking ws-client)
     ws-client))
 

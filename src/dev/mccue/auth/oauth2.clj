@@ -266,16 +266,16 @@
      nil]))
 
 (defn state-mismatch-handler
-  ([_]
-   {:status  400
-    :headers {"Content-Type" "text/plain; charset=utf-8"}
-    :body    "OAuth2 error: state mismatch"}))
+  [_]
+  {:status  400
+   :headers {"Content-Type" "text/plain; charset=utf-8"}
+   :body    "OAuth2 error: state mismatch"})
 
 (defn no-auth-code-handler
-  ([_]
-   {:status  400
-    :headers {"Content-Type" "text/plain; charset=utf-8"}
-    :body    "OAuth2 error: no authorization code"}))
+  [_]
+  {:status  400
+   :headers {"Content-Type" "text/plain; charset=utf-8"}
+   :body    "OAuth2 error: no authorization code"})
 
 (defn- redirect-response [{:keys [id landing-uri]} session access-token]
   (-> (resp/redirect landing-uri)

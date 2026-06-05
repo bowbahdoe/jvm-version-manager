@@ -1,5 +1,6 @@
 (ns dev.mccue.middleware
-  (:require [clojure.tools.logging :as log]
+  (:require [cheshire.core :as json]
+            [clojure.tools.logging :as log]
             [dev.mccue.environment :as environment]
             [honey.sql :as sql]
             [next.jdbc :as jdbc]
@@ -15,8 +16,8 @@
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.session :refer [wrap-session]]
             [ring.middleware.x-headers :as x]
-            [ring.util.response :as response]
-            [buddy.auth.backends :as backends]))
+            [ring.util.response :as response])
+  (:import (io.github.bucket4j Bucket)))
 
 (defn log-request-middleware
   [handler]
@@ -32,13 +33,12 @@
     (fn [request]
       (or (when-let [user_id (:user_id (:session request))]
             (when-let [user-info (jdbc/execute-one! db (sql/format
-                                                         {:select [:id]
+                                                         {:select [:id :atproto_did]
                                                           :from   :identity.user
                                                           :where  [:= :id (parse-uuid user_id)]}))]
               (handler (assoc request :identity user-info))))
           (handler request)))))
 
-(def ^{:private true} buddy-backend (backends/session))
 (defn standard-html-route-middleware
   [{:system/keys [session-store db]}]
   [;; Prevents "media type confusion" attacks
@@ -89,3 +89,29 @@
   [system]
   (vec (concat (standard-html-route-middleware system)
                [(require-authenticated-user-middleware system)])))
+
+(defn rate-limit-requests-middleware
+  [{:system/keys [api-rate-limiter]}]
+  (fn rate-limit-requests-middleware
+    [handler]
+    (fn rate-limited-handler [request]
+      (if (Bucket/.tryConsume api-rate-limiter 1)
+        (handler request)
+        {:status 429
+         :body   (json/generate-string {:error "Too Many Requests"})}))))
+
+(defn standard-api-route-middleware
+  [system]
+  [(rate-limit-requests-middleware system)
+   ;; Parses out urlencoded form and url parameters
+   wrap-params
+   ;; Adds "; charset=utf-8" to responses if none specified
+   #(wrap-default-charset % "utf-8")
+   ;; Parses out multipart params.
+   ;; Useful for things like file uploads
+   wrap-multipart-params
+   ;; Handles "multi-value" form parameters
+   wrap-nested-params
+   ;; Turns any string keys in :params into keywords
+   wrap-keyword-params])
+

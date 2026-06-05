@@ -1,107 +1,79 @@
 (ns dev.mccue.atproto.workers
   (:require [cheshire.core :as json]
             [clj-http.client :as http]
+            [clojure.java.io :as io]
+            [clojure.pprint :as pprint]
             [clojure.string :as string]
             [clojure.tools.logging :as log]
             [dev.mccue.atproto.diddy :as diddy]
             [dev.mccue.jsonquery :as jsonquery]
             [dev.mccue.repository.artifact :as artifact]
+            [dev.mccue.repository.module-info :as mi]
             [dev.mccue.repository.repository :as repository]
             [honey.sql :as sql]
-            [next.jdbc :as jdbc])
+            [next.jdbc :as jdbc]
+            [dev.mccue.atproto.cid :as cid])
   (:import (com.fasterxml.uuid Generators)
+           (java.io InputStream OutputStream)
+           (java.security MessageDigest)
            (java.time OffsetDateTime)
-           (java.util UUID)
+           (java.util HexFormat UUID)
            (org.postgresql.util PGobject)))
 
-
-(def create-session-xrpc
-  "/xrpc/com.atproto.server.createSession")
-
-(def refresh-session-xrpc
-  "/xrpc/com.atproto.server.refreshSession")
-
-(def put-record-xrpc
-  "/xrpc/com.atproto.repo.putRecord")
 
 (def get-blob-xrpc
   "/xrpc/com.atproto.sync.getBlob")
 
-(def handle (System/getenv "ATPROTO_INDEXER_HANDLE"))
-
-(def did
-  (delay (diddy/get-did handle)))
-
-(def service-endpoint
-  (delay
-    (diddy/resolve-service-endpoint
-      (diddy/resolve-did-document @did))))
 
 
-(comment
-  )
+;;     did        text        not null,
+;    rev        text        not null,
+;    rkey       text        not null,
+;    collection text        not null,
+;    record     jsonb       not null,
 
-
-(defn handle-module-delete!
+;; https://atproto.com/specs/tid
+;; "and the repo's rev must always increase -- if you see an event from a repo with an older rkey than the last one you saw from them, you can (and should) drop it."
+;; TODO: handle :rev being a TID
+(defn handle-record-create!
   [db payload]
-  (log/info "Delete not yet handled" payload))
+  (log/info "Upserting ATProto record: did:" (get-in payload [:event :did])
+            ", collection:" (get-in payload [:event :commit :collection])
+            ", rkey:" (get-in payload [:event :commit :rkey]))
+  (jdbc/execute! db
+                 (sql/format
+                   {:insert-into :atproto.record
+                    :columns [:did :collection :rkey :rev :cid :record]
+                    :values [[(get-in payload [:event :did])
+                              (get-in payload [:event :commit :collection])
+                              (get-in payload [:event :commit :rkey])
+                              (get-in payload [:event :commit :rev])
+                              (get-in payload [:event :commit :cid])
+                              (doto (PGobject.)
+                                (.setType "jsonb")
+                                (.setValue
+                                  (json/generate-string
+                                    (get-in payload [:event :commit :record]))))]]
+                    :on-conflict [:did :collection :rkey]
+                    :do-update-set [:rev :record]})))
 
-(defn handle-module-create!
+(defn handle-record-update!
   [db payload]
-  (let [provider-did (get-in payload [:event :did])
-        indexMe      (get-in payload [:event :commit :record :indexMe])]
-    (if-not indexMe
-      (log/info "indexMe is false. Skipping indexing module." provider-did)
-      (let [rkey                  (get-in payload [:event :commit :rkey])
-            createdAt             (get-in payload [:event :commit :record :createdAt])
-            jetstream-module-id   (.generate (Generators/timeBasedEpochGenerator))
-            jetstream-record      (get-in payload [:event :commit :record])]
-        (jdbc/with-transaction [t db]
-          (jdbc/execute! t (sql/format
-                             {:insert-into :repository.jetstream_module
-                              :columns [:id
-                                        :record
-                                        :provider_did
-                                        :rkey
-                                        :record_created_at]
-                              :values [[jetstream-module-id
-                                        (doto (PGobject.)
-                                          (.setValue (json/generate-string jetstream-record))
-                                          (.setType "jsonb"))
-                                        provider-did
-                                        rkey
-                                        (OffsetDateTime/parse createdAt)]]}))
-
-          (doall
-            (for [variant (get-in jetstream-record [:variants])]
-              (let [jetstream-module-variant-id (.generate (Generators/timeBasedEpochGenerator))]
-                (jdbc/execute! t (sql/format {:insert-into :repository.jetstream_module_variant
-                                              :columns     [:id
-                                                            :jetstream_module_id
-                                                            :artifact_cid
-                                                            :license
-                                                            :bill_of_materials
-                                                            :cpu_architecture
-                                                            :operating_system
-                                                            :sourced_from_url
-                                                            :sourced_from_cid
-                                                            :sourced_from_aturi]
-                                              :values [[jetstream-module-variant-id
-                                                        jetstream-module-id
-                                                        (get-in variant [:artifact :ref :$link])
-                                                        (get-in variant [:license])
-                                                        (get-in variant [:billOfMaterials])
-                                                        (get-in variant [:cpuArchitecture])
-                                                        (get-in variant [:operatingSystem])
-                                                        (get-in variant [:sourcedFrom :url])
-                                                        (get-in variant [:sourcedFrom :cid])
-                                                        (get-in variant [:sourcedFrom :uri])]]}))))))))))
+  (handle-record-create! db payload))
 
 
-
-(comment
-  (handle-module-create! nil nil))
-
+(defn handle-record-delete!
+  [db payload]
+  (log/info "Deleting ATProto record: did:" (get-in payload [:event :did])
+            ", collection:" (get-in payload [:event :commit :collection])
+            ", rkey:" (get-in payload [:event :commit :rkey]))
+  (jdbc/execute! db
+                 (sql/format
+                   {:delete-from :atproto.record
+                    :where [:and
+                            [:= :did (get-in payload [:did])]
+                            [:= :collection (get-in payload [:collection])]
+                            [:= :rkey (get-in payload [:rkey])]]})))
 
 (defn atproto_jetstream_event-processEvent
   [{:system/keys [db]} _job-type payload]
@@ -117,121 +89,318 @@
         (log/debug "Identity Event: cleaning up")
         (jdbc/execute! db (sql/format {:delete-from :atproto.jetstream_event
                                        :where [:= :id (UUID/fromString (:id payload))]})))
+
       (and (= event-kind "commit")
-           (= (get-in payload [:event :commit :record :$type])
-              "dev.mccue.jvm.module")
            (= (get-in payload [:event :commit :operation])
               "create"))
-      (handle-module-create! db payload)
+      (handle-record-create! db payload)
 
-      (and (= event-kind "delete")
-           (= (get-in payload [:event :commit :record :$type])
-              "dev.mccue.jvm.module")
+      (and (= event-kind "commit")
+           (= (get-in payload [:event :commit :operation])
+              "update"))
+      (handle-record-update! db payload)
+
+      (and (= event-kind "commit")
            (= (get-in payload [:event :commit :operation])
               "delete"))
-      (handle-module-delete! db payload)
+      (handle-record-delete! db payload)
 
       :else
       (log/info (str "Unhandled Event: " payload)))))
 
-(defn repository_jetstream_module_variant-checkModule
+(defn atproto_record-processModule
   [{:system/keys [db]} _job-type payload]
-  (let [module-variant-info (jsonquery/execute-one! db
-                                                    {:select [:id
-                                                              :jetstream_module_id
-                                                              :artifact_cid
-                                                              :license
-                                                              :bill_of_materials
-                                                              :cpu_architecture
-                                                              :operating_system
-                                                              :sourced_from_url
-                                                              :sourced_from_cid
-                                                              :sourced_from_aturi
-                                                              ^:single
-                                                              [:jetstream-module
-                                                               {:select [:id
-                                                                         :record
-                                                                         :provider_did
-                                                                         :rkey
-                                                                         :record_created_at]
-                                                                :from :repository.jetstream_module
-                                                                :join-on [:jetstream_module_id :id]}]]
-                                                     :from :repository.jetstream_module_variant
-                                                     :where [:= :id (parse-uuid (:id payload))]})
-        blob-link     (get-in module-variant-info [:artifact_cid])
-        publisher-did (get-in module-variant-info [:jetstream-module :provider_did])
-        blob-response (http/get
-                        (str @service-endpoint get-blob-xrpc
-                             "?cid=" blob-link
-                             "&did=" publisher-did)
-                        {:as :byte-array})
-        module-info (artifact/module-info-from-archive-bytes
-                      (:body blob-response)
-                      #_#_#_#_ :no-module-info-found-cb (constantly 0)
-                      :more-than-one-module-info-found-cb (fn [entries]
-                                                            (count entries)))
+  (if (not= (get-in payload [:record :$type]) "dev.mccue.jvm.module")
+    (log/info "Record is not a dev.mccue.jvm.module. Skipping.")
 
-        module-name         (:name module-info)
-        module-version      (:version module-info)
-        rkey                (get-in module-variant-info [:jetstream-module :rkey])
-        [rkey-module-name
-         rkey-module-version] (string/split rkey #":")
+    (do
+      (log/info "Creating module records." (:rkey payload))
+      (jdbc/with-transaction
+        [t db]
+        (let [{:keys [record]} payload]
+          (jdbc/execute-one!
+            t
+            (sql/format
+              {:insert-into :atproto.dev_mccue_jvm_module
+               :columns [:atproto_record_id
+                         :index_me
+                         :record_created_at]
+               :values [[(parse-uuid (:id payload))
+                         (:indexMe record)
+                         (OffsetDateTime/parse (:createdAt record))]]
+               :on-conflict [:atproto_record_id]
+               :do-update-set [:index_me :record_created_at]}))
+          (let [{:dev_mccue_jvm_module/keys [id]} (jdbc/execute-one!
+                                                    t
+                                                    (sql/format
+                                                      {:select [:id]
+                                                       :from :atproto.dev_mccue_jvm_module
+                                                       :where [:= :atproto_record_id (parse-uuid (:id payload))]}))]
 
-        module-name-good      (if (not= rkey-module-name module-name)
-                                (do (log/warn "Published module name does not match name in rkey. rkey="
-                                              rkey
-                                              ", module-name="
-                                              module-name)
-                                    false)
-                                true)
+            (jdbc/execute-one! t (sql/format
+                                   {:delete-from :atproto.dev_mccue_jvm_module_variant
+                                    :where [:= :dev_mccue_jvm_module_id id]}))
+            (doseq [variant (:variants record)]
+              (let [variant-id (.generate (Generators/timeBasedEpochGenerator))]
+                (jdbc/execute-one!
+                  t
+                  (sql/format {:insert-into :atproto.dev_mccue_jvm_module_variant
+                               :columns     [:id
+                                             :dev_mccue_jvm_module_id
+                                             :license
+                                             :sourced_from_url
+                                             :sourced_from_cid
+                                             :sourced_from_aturi
+                                             :artifact_cid_link
+                                             :artifact_size]
+                               :values      [[variant-id
+                                              id
+                                              (:license variant)
+                                              (get-in variant [:sourcedFrom :url])
+                                              (get-in variant [:sourcedFrom :cid])
+                                              (get-in variant [:sourcedFrom :uri])
+                                              (get-in variant [:artifact :ref :$link])
+                                              (get-in variant [:artifact :size])]]}))
+                (when (seq (:attributes variant))
+                  (jdbc/execute! t
+                                 (sql/format {:insert-into :atproto.dev_mccue_jvm_module_variant_attribute
+                                              :columns [:dev_mccue_jvm_module_variant_id
+                                                        :name
+                                                        :value]
+                                              :values (vec (for [{:keys [name value]} (:attributes variant)]
+                                                             [variant-id name value]))})))))))))))
 
-        module-version-good (if (and rkey-module-version
-                                     (not= module-version rkey-module-version))
-                              (do (if module-version
-                                    (log/warn "Published module version does not match version in rkey. rkey="
-                                              rkey
-                                              ", version in module-info=" module-version)
-                                    (log/warn "Published module version does not match version in rkey. rkey="
-                                              rkey
-                                              ", version in module-info=null"))
-                                  false)
-                              true)]
+(defn persist-module!
+  [db variant-id cid module-info]
+  (jdbc/with-transaction
+    [t db]
+    (let [rs (jdbc/execute-one! t (sql/format
+                                    {:insert-into :repository.module
+                                     :columns     [:name
+                                                   :version
+                                                   :target_platform
+                                                   :mandated
+                                                   :synthetic
+                                                   :open
+                                                   :cid]
+                                     :values      [[(:name module-info)
+                                                    (:version module-info)
+                                                    (:target-platform module-info)
+                                                    (or (:mandated module-info) false)
+                                                    (or (:synthetic module-info) false)
+                                                    (or (:open module-info) false)
+                                                    cid]]
+                                     :on-conflict [:cid]
+                                     :do-nothing true
+                                     :returning   [:id]}))
+          module-id (:module/id rs)]
+      ;; If we don't get a module id, we shouldn't need to derive more info
+      (when module-id
+        (doseq [provides (:provides module-info)]
+          (doseq [with (:with provides)]
+            (jdbc/execute! t [(String/.stripIndent
+                                "INSERT INTO repository.module_provides(
+                                 module_id,
+                                 service,
+                                 \"with\"
+                              )
+                              VALUES (?, ?, ?)
+                              ON CONFLICT DO NOTHING")
+                              module-id
+                              (:service provides)
+                              with])))
 
-    (jdbc/execute!
-      db
-      (sql/format
-        {:update :repository.jetstream_module_variant
-         :set {:rkey_module_version     rkey-module-version
-               :artifact_module_version module-version
-               :module_version_matches  module-version-good
-               :rkey_module_name        rkey-module-name
-               :artifact_module_name    module-name
-               :module_name_matches     module-name-good
-               :artifact_target_platform (:target-platform module-info)}
-         :where [:= :id (parse-uuid (:id module-variant-info))]}))
+        (doseq [uses (:uses module-info)]
+          (jdbc/execute! t [(String/.stripIndent
+                              "INSERT INTO repository.module_uses(
+                                   module_id,
+                                   service
+                                )
+                                VALUES (?, ?)
+                                ON CONFLICT DO NOTHING")
+                            module-id
+                            (:service uses)]))
+        (doseq [requires (:requires module-info)]
+          (jdbc/execute! t [(String/.stripIndent
+                              "INSERT INTO repository.module_requires(
+                                 module_id,
+                                 module,
+                                 version,
+                                 static,
+                                 transitive,
+                                 mandated,
+                                 synthetic
+                              )
+                              VALUES (?, ?, ?, ?, ?, ?, ?)
+                              ON CONFLICT DO NOTHING")
+                            module-id
+                            (:module requires)
+                            (:version requires)
+                            (or (:static requires)
+                                false)
+                            (or (:transitive requires)
+                                false)
+                            (or (:mandated requires)
+                                false)
+                            (or (:synthetic requires)
+                                false)]))
+        (doseq [exports (:exports module-info)]
+          (let [exports-id (.generate (Generators/timeBasedEpochGenerator))]
+            (jdbc/execute! t (sql/format
+                               {:insert-into :repository.module_exports
+                                :columns [:id :module_id :package :mandated :synthetic]
+                                :values [[exports-id
+                                          module-id
+                                          (:package exports)
+                                          (or (:mandated exports)
+                                              false)
+                                          (or (:synthetic exports)
+                                              false)]]}))
 
-    (when (and module-name-good
-               module-version-good)
+            (doseq [to (:to exports)]
+              (jdbc/execute! t (sql/format
+                                 {:insert-into :repository.module_exports_to
+                                  :columns [:module_exports_id :module]
+                                  :values [[exports-id to]]})))))
 
-      ;    module_id                   uuid        not null references repository.module (id),
-      ;    module_name                 text        not null,
-      ;    module_version              text        not null,
-      ;    jetstream_module_variant_id uuid        not null references repository.jetstream_module_variant (id)
-      ;        on update restrict on delete restrict,
-      (jdbc/execute! db (sql/format
-                          {:insert-into :repository.published_module
-                           :columns     [:module_name
-                                         :module_version
-                                         :jetstream_module_variant_id
-                                         :module_info]
-                           :values      [[module-name
-                                          module-version
-                                          (parse-uuid (:id module-variant-info))
-                                          (json/generate-string module-info)]]
-                           :on-conflict []
-                           :do-nothing  true})))))
+        (doseq [{:keys [package]} (:packages module-info)]
+          (jdbc/execute! t [(String/.stripIndent
+                              "INSERT INTO repository.module_package(
+                                   module_id,
+                                   package
+                                )
+                                VALUES (?, ?)
+                                ON CONFLICT DO NOTHING")
+                            module-id
+                            package]))
+
+        (let [{:keys [algorithm hashes]} (:hashes module-info)]
+          (doseq [{:keys [module hash]} hashes]
+            (jdbc/execute! t [(String/.stripIndent
+                                "INSERT INTO repository.module_hash(
+                                     module_id,
+                                     module,
+                                     algorithm,
+                                     hash
+                                  )
+                                  VALUES (?, ?, ?, ?)
+                                  ON CONFLICT DO NOTHING")
+                              module-id
+                              module
+                              algorithm
+                              hash])))))))
+
+(defn auto-publish-module!
+  [db publisher-did artifact-cid-link]
+  (jdbc/execute! db (sql/format {:insert-into [:repository.published_module]
+                                 :columns [:atproto_did :module_id]
+                                 :values [[publisher-did {:select [:id]
+                                                          :from :repository.module
+                                                          :where [:= :cid artifact-cid-link]}]]})))
+
+(defn atproto_dev_mccue_jvm_module-importModule
+  [{:system/keys [db]} _job-type payload]
+  (let [atproto-record-info (jsonquery/execute-one!
+                              db
+                              {:select [:atproto_record_id
+                                        ^:single
+                                        [:atproto_record {:select [:did :collection :rkey :rev :cid]
+                                                          :from :atproto.record
+                                                          :join-on [:atproto_record_id :id]}]
+                                        [:variants {:select [:id
+                                                             :license
+                                                             :sourced_from_url
+                                                             :sourced_from_cid
+                                                             :sourced_from_aturi
+                                                             :artifact_cid_link
+                                                             :artifact_size
+                                                             [:attributes {:select [:name :value]
+                                                                           :from :atproto.dev_mccue_jvm_module_variant_attribute
+                                                                           :join-on [:id :dev_mccue_jvm_module_variant_id]}]]
+                                                    :from :atproto.dev_mccue_jvm_module_variant
+                                                    :join-on [:id :dev_mccue_jvm_module_id]}]]
+                               :from :atproto.dev_mccue_jvm_module
+                               :where [:= :id (parse-uuid (:id payload))]})]
+    (let [rkey                  (:rkey (:atproto_record atproto-record-info))
+          [rkey-module-name
+           rkey-module-version] (string/split rkey #":")]
+      (doseq [variant (:variants atproto-record-info)]
+        (let [variant-id (parse-uuid (:id variant))
+              log-and-persist! (fn [error-message]
+                                 (log/error error-message)
+                                 (jdbc/execute! db (sql/format
+                                                     {:insert-into :atproto.dev_mccue_jvm_module_variant_error
+                                                      :columns     [:dev_mccue_jvm_module_variant_id :error]
+                                                      :values      [[variant-id error-message]]})))]
+          (try
+            (let [{:keys [artifact_cid_link
+                          artifact_size]} variant
+                  publisher-did               (:did (:atproto_record atproto-record-info))
+                  _                           (log/info "Fetching artifact for variant of"
+                                                        rkey
+                                                        variant)
+                  service-endpoint            (diddy/resolve-service-endpoint
+                                                (diddy/resolve-did-document publisher-did))
+                  fetched-artifact            (artifact/fetch-artifact-cached
+                                                db
+                                                {:url (str service-endpoint get-blob-xrpc
+                                                           "?cid=" artifact_cid_link
+                                                           "&did=" publisher-did)})
+                  artifact-bytes (:bytes fetched-artifact)
+                  computed-cid (cid/sha256-bytes->cid-string
+                                 (cid/bytes->sha256-bytes (:bytes fetched-artifact)))]
+              (if (not= artifact_size (alength artifact-bytes))
+                (log-and-persist! (str "Artifact size and expected artifact size are different. actual="
+                                       (alength artifact-bytes)
+                                       ", expected="
+                                       artifact_size))
+
+                (if (not= artifact_cid_link computed-cid)
+                  (log-and-persist! (str "Artifact CID and CID computed from bytes are different. artifact_cid="
+                                         artifact_cid_link
+                                         ", computed_cid="
+                                         computed-cid))
+                  ;; We only proceed to look for a module info if hashes match
+                  (let [module-info-entries (artifact/module-info-entries-from-archive artifact-bytes)]
+                    (cond
+                      (= (count module-info-entries) 0)
+                      (log-and-persist! (str "More than one module-info.class found in archive. "
+                                             (string/join ", " (map :name module-info-entries))))
+                      (> (count module-info-entries) 1)
+                      (log-and-persist! (str "More than one module-info.class found in archive. "
+                                             (string/join ", " (map :name module-info-entries))))
+
+                      :else
+                      (let [module-info-entry (first module-info-entries)
+                            module-info (mi/from-bytes (:bytes module-info-entry))
+                            module-name-matches (= rkey-module-name (:name module-info))
+                            module-version-matches (= rkey-module-version (:version module-info))]
+                        (when-not module-name-matches
+                          (log-and-persist!
+                            (str "Module name does not match. expected: "
+                                 rkey-module-name
+                                 " based on the record. found: "
+                                 (:name module-info))))
+                        (when-not module-version-matches
+                          (log-and-persist!
+                            (str "Module version does not match. expected: "
+                                 (or rkey-module-version "<no version>")
+                                 " based on the record. found: "
+                                 (or (:version module-info) "<no version>"))))
+                        (persist-module! db variant-id artifact_cid_link module-info)
+                        (auto-publish-module! db publisher-did artifact_cid_link)))))))
+
+            (catch Exception e
+              (log-and-persist! (Exception/.getMessage e)))))))))
+
+
+
+        
+
+
 
 (defn workers
   []
-  {:atproto.jetstream_event/processEvent #'atproto_jetstream_event-processEvent
-   :repository.jetstream_module_variant/checkModule #'repository_jetstream_module_variant-checkModule})
+  {:atproto.jetstream_event/processEvent      #'atproto_jetstream_event-processEvent
+   :atproto.record/processModule              #'atproto_record-processModule
+   :atproto.dev_mccue_jvm_module/importModule #'atproto_dev_mccue_jvm_module-importModule})
