@@ -2,6 +2,7 @@
   "id": "dev.mccue.jvm.module",
   "lexicon": 1,
   "defs": {
+
     "variant": {
       "type": "object",
       "required": [
@@ -33,14 +34,16 @@
           "description": "A reference to where this module was copied from."
         },
         "operatingSystem": {
-          "type": "string",
-          "knownValues": ["windows", "macos", "linux"],
-          "description": "The operating system that the module is specific to."
+          "type": "ref",
+          "ref": "dev.mccue.jvm.operatingSystem"
         },
         "cpuArchitecture": {
-          "type": "string",
-          "knownValues": ["amd64", "aarch64"],
-          "description": "The cpu architecture that the module is specific to."
+          "type": "ref",
+          "ref": "dev.mccue.jvm.cpuArchitecture"
+        },
+        "moduleInfo": {
+          "ref": "dev.mccue.jvm.moduleInfo",
+          "type": "ref"
         }
       }
     },

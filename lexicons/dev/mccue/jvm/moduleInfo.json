@@ -105,10 +105,10 @@
     "exportTo": {
       "type": "object",
       "required": [
-        "package"
+        "module"
       ],
       "properties": {
-        "package": {
+        "module": {
           "type": "string",
           "minLength": 1
         }
@@ -166,42 +166,42 @@
           "type": "array",
           "items": {
             "type": "ref",
-            "ref": "dev.mccue.jvm.module#requires"
+            "ref": "dev.mccue.jvm.moduleInfo#requires"
           }
         },
         "exports": {
           "type": "array",
           "items": {
             "type": "ref",
-            "ref": "dev.mccue.jvm.module#exports"
+            "ref": "dev.mccue.jvm.moduleInfo#exports"
           }
         },
         "uses": {
           "type": "array",
           "items": {
             "type": "ref",
-            "ref": "dev.mccue.jvm.module#uses"
+            "ref": "dev.mccue.jvm.moduleInfo#uses"
           }
         },
         "provides": {
           "type": "array",
           "items": {
             "type": "ref",
-            "ref": "dev.mccue.jvm.module#provides"
+            "ref": "dev.mccue.jvm.moduleInfo#provides"
           }
         },
         "packages": {
           "type": "array",
           "items": {
             "type": "ref",
-            "ref": "dev.mccue.jvm.module#requires"
+            "ref": "dev.mccue.jvm.moduleInfo#requires"
           }
         },
         "hashes": {
           "type": "array",
           "items": {
             "type": "ref",
-            "ref": "dev.mccue.jvm.module#hashes"
+            "ref": "dev.mccue.jvm.moduleInfo#hashes"
           }
         }
       }

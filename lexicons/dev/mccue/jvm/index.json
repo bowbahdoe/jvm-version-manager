@@ -3,25 +3,57 @@
   "lexicon": 1,
   "id": "dev.mccue.jvm.index",
   "defs": {
-    "moduleVersion": {
+    "variant": {
       "type": "object",
       "required": [
-        "version",
-        "module"
+        "source",
+        "moduleInfo"
       ],
       "properties": {
-        "version": {
-          "type": "string",
-          "minLength": 1
+        "license": {
+          "description": "SPDX License String",
+          "type": "string"
         },
-        "module": {
-          "ref": "com.atproto.repo.strongRef",
+        "billOfMaterials": {
+          "description": "SBOM in CycloneDX format",
+          "type": "string"
+        },
+        "source": {
+          "type": "union",
+          "refs": [
+            "com.atproto.repo.strongRef"
+          ],
+          "description": "A reference to where this module was copied from."
+        },
+        "operatingSystem": {
           "type": "ref",
-          "description": "A reference to the module in the provider repo"
+          "ref": "dev.mccue.jvm.operatingSystem"
+        },
+        "cpuArchitecture": {
+          "type": "ref",
+          "ref": "dev.mccue.jvm.cpuArchitecture"
         },
         "moduleInfo": {
           "ref": "dev.mccue.jvm.moduleInfo",
           "type": "ref"
+        }
+      }
+    },
+    "moduleVersion": {
+      "type": "object",
+      "required": [
+        "variants"
+      ],
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "dev.mccue.jvm.index#variant"
+          }
         }
       }
     },
