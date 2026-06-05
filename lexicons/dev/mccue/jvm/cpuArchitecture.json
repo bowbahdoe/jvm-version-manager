@@ -1,0 +1,14 @@
+{
+  "id": "dev.mccue.jvm.cpuArchitecture",
+  "lexicon": 1,
+  "defs": {
+    "main": {
+      "type": "string",
+      "knownValues": [
+        "amd64",
+        "aarch64"
+      ],
+      "description": "The cpu architecture that a module is specific to."
+    }
+  }
+}
