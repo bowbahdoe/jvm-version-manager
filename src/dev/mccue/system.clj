@@ -6,7 +6,6 @@
             [dev.mccue.workers :as workers]
             [dev.mccue.session-store :as session-store]
             [dev.mccue.jetstream :as jetstream]
-            [dev.mccue.index-publisher :as index-publisher]
             [next.jdbc :as jdbc]
             [next.jdbc.connection :as connection]
             [proletarian.protocols :as protocols]
@@ -113,14 +112,6 @@
   [jetstream-websocket-client]
   (jetstream/stop-jetstream-websocket-client! jetstream-websocket-client))
 
-(defn start-index-publisher!
-  [system]
-  (index-publisher/start-index-publisher! system))
-
-(defn stop-index-publisher!
-  [index-publisher]
-  (index-publisher/stop-index-publisher! index-publisher))
-
 (defn start-api-rate-limiter!
   []
   (-> (Bucket/builder)
@@ -141,20 +132,17 @@
                                :system/session-store session-store
                                :system/api-rate-limiter api-rate-limiter})
         jetstream-websocket-client (start-jetstream-websocket-client! {:system/db db})
-        worker (start-worker! {:system/db db})
-        index-publisher (start-index-publisher! {:system/db db})]
+        worker (start-worker! {:system/db db})]
     {:system/db db
      :system/admin-db admin-db
      :system/session-store session-store
      :system/server server
      :system/worker worker
-     :system/index-publisher index-publisher
      :system/jetstream-websocket-client jetstream-websocket-client
      :system/api-rate-limiter api-rate-limiter}))
 
 (defn stop!
-  [{:system/keys [server worker db index-publisher jetstream-websocket-client]}]
-  (stop-index-publisher! index-publisher)
+  [{:system/keys [server worker db jetstream-websocket-client]}]
   (stop-worker! worker)
   (stop-jetstream-websocket-client! jetstream-websocket-client)
   (stop-server! server)
