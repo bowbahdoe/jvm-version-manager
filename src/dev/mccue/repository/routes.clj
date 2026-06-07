@@ -12,57 +12,6 @@
   (:import (java.lang.module ModuleDescriptor$Version)))
 
 
-
-(defn module-set-builder-handler
-  [{:system/keys [db]
-    :as          system}
-   request]
-  (try
-    (let [active-module-set {}
-          selected-modules (keys active-module-set)]
-      (cond
-        (empty? selected-modules)
-        (page-helpers/page-response
-          :body (list
-                  [:h1 "No modules selected yet"]))
-
-        :else
-        (page-helpers/page-response
-          
-          :body
-          (list
-            (doall
-              (for [[name {:keys [version]}] active-module-set]
-                [:div {:style (page-helpers/css page-helpers/solid-box)}
-                 [:h1 name]
-                 (let [rows (jdbc/execute! db ["SELECT module_requires.module as module
-                                                              FROM module_requires
-                                                              JOIN module
-                                                                ON module.id = module_requires.module_id
-                                                              WHERE module.name = ?
-                                                                AND module.version = ?
-                                                              GROUP BY module_requires.module"
-                                               name version])]
-                   (list
-                     [:p "Platforms"]
-                     [:p {:style (page-helpers/css page-helpers/solid-box)}
-                      (string/join ", " (sort (map :module/target_platform
-                                                   (jdbc/execute! db
-                                                                  ["SELECT module.target_platform
-                                                                    FROM module WHERE name=?"
-                                                                   name]))))]
-                     [:p "Requires " [:span {:style "font: bold"} "^"]]
-                     (for [{:module_requires/keys [module]} rows]
-                       [:div {:style (page-helpers/css (conj page-helpers/solid-box "margin-left: 20px"))}
-                        (list
-                          [:p (if (active-module-set module)
-                                {}
-                                {:style "color: red"}) module])])))]))))))
-
-    (catch Exception e
-      (Exception/.printStackTrace e)
-      (throw e))))
-
 (defn publish-handler
   [system request]
   (page-helpers/page-response
@@ -112,7 +61,7 @@
              (for [module modules]
                [:div {:id (:id module)}
                 [:a {:style (page-helpers/css ["color: black"])
-                     :href  (str "/module/" (:name module))}
+                     :href  (str "/module/details-by-name/" (:name module))}
                  [:div {:style (page-helpers/css (conj page-helpers/solid-box "margin-left: 20px"))}
                   (str (:atproto_handle (:user module)) "/" (:name module))]]])])))
 
@@ -122,8 +71,7 @@
   (let [modules (jdbc/execute! db (h/format {:select [:module/version]
                                              :from   :repository.module
                                              :where  [:and
-                                                      [:= :module/name name]
-                                                      [:= :module/provider_id provider-id]]}))
+                                                      [:= :module/name name]]}))
         latest-version (first
                          (reverse
                            (sort (map (fn [module]
@@ -144,8 +92,7 @@
                                                     :from   :repository.module
                                                     :where  [:and
                                                              [:= :module/name name]
-                                                             [:= :module/version (str version)]
-                                                             [:= :module/provider_id provider-id]]})))]
+                                                             [:= :module/version (str version)]]})))]
     (let [module-name (:module/name (first modules))
           requires (->> (jdbc/execute! db (h/format {:select    [:module_requires/* :module/target_platform]
                                                      :from      :repository.module_requires
@@ -410,12 +357,11 @@
 (defn routes
   [system]
   ["" {:middleware (middleware/standard-html-route-middleware system)}
-   [["/module-set-builder" {:get {:handler (partial #'module-set-builder-handler system)}}]
     ["/api/modules" {:get (partial #'get-modules-handler system)}]
     ["/search" {:get  (partial #'get-search-handler system)}]
     ["/search/partial" {:get {:handler (partial #'get-search-partial-handler system)}}]
-    #_["/module/:name" {:get (partial #'module-details-handler system)}]
+    ["/module/details-by-name/:name" {:get (partial #'module-details-handler system)}]
     #_["/module/:cid" {:get (partial #'module-details-handler system)}]
 
     ["/module-set/:name" {:get (partial #'module-set-details-handler system)}]
-    ["/api/publish" {:post {:handler (partial #'publish-handler system)}}]]])
+    ["/api/publish" {:post {:handler (partial #'publish-handler system)}}]])

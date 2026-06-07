@@ -26,7 +26,6 @@ CREATE TABLE atproto.dev_mccue_jvm_module
     atproto_record_id uuid        not null unique
         references atproto.record (id) on delete cascade,
 
-    index_me          boolean     not null default false,
     record_created_at timestamptz not null,
 
     created_at        timestamptz not null default now(),
@@ -130,6 +129,25 @@ CREATE TRIGGER set_repository_published_module_updated_at
     FOR EACH ROW
 EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
 
+CREATE TABLE IF NOT EXISTS repository.published_module_attribute
+(
+    id                  uuid        NOT NULL DEFAULT uuidv7() PRIMARY KEY,
+    published_module_id uuid        not null,
+    name                text        not null,
+    value               text        not null,
+    created_at          timestamptz not null default now(),
+    updated_at          timestamptz not null default now(),
+    unique (published_module_id, name),
+    FOREIGN KEY (published_module_id) REFERENCES repository.published_module (id)
+        on delete cascade
+);
+
+CREATE TRIGGER set_repository_published_module_attribute_updated_at
+    BEFORE UPDATE
+    ON repository.published_module_attribute
+    FOR EACH ROW
+EXECUTE PROCEDURE system.set_current_timestamp_updated_at();
+
 -- // insert trigger
 CREATE FUNCTION atproto_record_processModule_function()
     RETURNS TRIGGER AS
@@ -171,7 +189,9 @@ DROP FUNCTION atproto_record_processModule_function;
 DROP TRIGGER atproto_dev_mccue_jvm_module_importModule_trigger ON atproto.dev_mccue_jvm_module;
 DROP FUNCTION atproto_dev_mccue_jvm_module_importModule_function;
 
+DROP TABLE repository.published_module_attribute;
 DROP TABLE repository.published_module;
+DROP TABLE atproto.dev_mccue_jvm_module_variant_attribute;
 DROP TABLE atproto.dev_mccue_jvm_module_variant_error;
 DROP TABLE atproto.dev_mccue_jvm_module_variant;
 DROP TABLE atproto.dev_mccue_jvm_module;

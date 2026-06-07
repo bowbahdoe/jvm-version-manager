@@ -28,7 +28,8 @@
         buddy/buddy-auth                       {:mvn/version "3.0.323"}
         jarohen/chime                          {:mvn/version "0.3.3"}
         dev.mccue/duke                         {:local/root "jars/duke-2025.11.09-uber.jar"}
-        com.bucket4j/bucket4j_jdk17-core       {:mvn/version "8.19.0"}}
+        com.bucket4j/bucket4j_jdk17-core       {:mvn/version "8.19.0"}
+        com.github.ben-manes.caffeine/caffeine {:mvn/version "3.2.4"}}
  :paths ["src" "res"]
  :aliases {:dev   {:extra-paths ["dev"]
                    :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.10.13"}}}
@@ -37,4 +38,10 @@
            :test  {:extra-paths ["test"]
                    :extra-deps  {clj-http-fake/clj-http-fake {:mvn/version "1.0.4"}
                                  ring/ring-mock              {:mvn/version "0.6.2"}
-                                 lambdaisland/kaocha         {:mvn/version "1.91.1392"}}}}}
+                                 lambdaisland/kaocha         {:mvn/version "1.91.1392"}}}
+           :cli   {:paths ["cli"]
+                   :deps {org.xerial/sqlite-jdbc           {:mvn/version "3.51.3.0"}
+                          org.babashka/cli                 {:mvn/version "0.10.69"}
+                          babashka/fs                      {:mvn/version "0.5.33"}
+                          seancorfield/next.jdbc           {:mvn/version "1.2.659"}
+                          com.github.seancorfield/honeysql {:mvn/version "2.7.1368"}}}}}

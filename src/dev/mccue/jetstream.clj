@@ -4,8 +4,6 @@
             [honey.sql :as sql]
             [next.jdbc :as jdbc])
   (:import (java.net URI)
-           (java.util.concurrent CountDownLatch)
-           (java.util.concurrent.atomic AtomicBoolean)
            (org.java_websocket.client WebSocketClient)))
 
 (defn- on-open

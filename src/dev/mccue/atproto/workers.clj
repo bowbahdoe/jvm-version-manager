@@ -1,23 +1,17 @@
 (ns dev.mccue.atproto.workers
   (:require [cheshire.core :as json]
-            [clj-http.client :as http]
-            [clojure.java.io :as io]
-            [clojure.pprint :as pprint]
             [clojure.string :as string]
             [clojure.tools.logging :as log]
+            [dev.mccue.atproto.cid :as cid]
             [dev.mccue.atproto.diddy :as diddy]
             [dev.mccue.jsonquery :as jsonquery]
             [dev.mccue.repository.artifact :as artifact]
             [dev.mccue.repository.module-info :as mi]
-            [dev.mccue.repository.repository :as repository]
             [honey.sql :as sql]
-            [next.jdbc :as jdbc]
-            [dev.mccue.atproto.cid :as cid])
+            [next.jdbc :as jdbc])
   (:import (com.fasterxml.uuid Generators)
-           (java.io InputStream OutputStream)
-           (java.security MessageDigest)
            (java.time OffsetDateTime)
-           (java.util HexFormat UUID)
+           (java.util UUID)
            (org.postgresql.util PGobject)))
 
 
@@ -123,13 +117,11 @@
             (sql/format
               {:insert-into :atproto.dev_mccue_jvm_module
                :columns [:atproto_record_id
-                         :index_me
                          :record_created_at]
                :values [[(parse-uuid (:id payload))
-                         (:indexMe record)
                          (OffsetDateTime/parse (:createdAt record))]]
                :on-conflict [:atproto_record_id]
-               :do-update-set [:index_me :record_created_at]}))
+               :do-update-set [:record_created_at]}))
           (let [{:dev_mccue_jvm_module/keys [id]} (jdbc/execute-one!
                                                     t
                                                     (sql/format
@@ -291,12 +283,19 @@
                               hash])))))))
 
 (defn auto-publish-module!
-  [db publisher-did artifact-cid-link]
-  (jdbc/execute! db (sql/format {:insert-into [:repository.published_module]
-                                 :columns [:atproto_did :module_id]
-                                 :values [[publisher-did {:select [:id]
-                                                          :from :repository.module
-                                                          :where [:= :cid artifact-cid-link]}]]})))
+  [db publisher-did artifact-cid-link attributes]
+  (let [published-module-id (.generate (Generators/timeBasedEpochGenerator))]
+    (jdbc/with-transaction [t db]
+      (jdbc/execute! t (sql/format {:insert-into [:repository.published_module]
+                                    :columns [:id :atproto_did :module_id]
+                                    :values [[published-module-id publisher-did {:select [:id]
+                                                                                 :from :repository.module
+                                                                                 :where [:= :cid artifact-cid-link]}]]}))
+      (when (seq attributes)
+        (jdbc/execute! t (sql/format {:insert-into :repository.published_module_attribute
+                                      :columns [:published_module_id :name :value]
+                                      :values  (vec (for [attribute attributes]
+                                                      [published-module-id (:name attribute) (:value attribute)]))}))))))
 
 (defn atproto_dev_mccue_jvm_module-importModule
   [{:system/keys [db]} _job-type payload]
@@ -388,16 +387,10 @@
                                  " based on the record. found: "
                                  (or (:version module-info) "<no version>"))))
                         (persist-module! db variant-id artifact_cid_link module-info)
-                        (auto-publish-module! db publisher-did artifact_cid_link)))))))
+                        (auto-publish-module! db publisher-did artifact_cid_link (:attributes variant))))))))
 
             (catch Exception e
               (log-and-persist! (Exception/.getMessage e)))))))))
-
-
-
-        
-
-
 
 (defn workers
   []

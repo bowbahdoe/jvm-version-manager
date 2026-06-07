@@ -41,3 +41,14 @@ publish_lexicons:
     # (note to self: escape !s in password with \!)
     goat lex publish
 
+# Build the CLI artifact
+build_cli:
+    clojure -A:build -M -m build
+
+# Run tthe CLI
+jvm *args:
+    @clojure -J--enable-native-access=ALL-UNNAMED -A:cli -M -m dev.mccue.jvm.cli {{args}}
+
+# Run the CLI (from a built uberjar)
+jvm_uber *args:
+    java -jar target/jvm.jar {{args}}

@@ -93,4 +93,13 @@ CREATE TABLE IF NOT EXISTS published_module
     unique (module_id, atproto_did)
 ) STRICT;
 --;
+CREATE TABLE IF NOT EXISTS published_module_attribute
+(
+    id                  text primary key,
+    published_module_id text not null,
+    name                text not null,
+    value               text not null,
+    unique (published_module_id, name),
+    FOREIGN KEY (published_module_id) REFERENCES published_module (id)
+) STRICT;
 

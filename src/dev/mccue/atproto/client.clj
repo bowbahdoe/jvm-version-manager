@@ -124,8 +124,8 @@
 (comment
   (def client (for-did
                 (user/db)
-                "did:plc:dt7fth2hmap6wya7uyyl2g3v" ;;mccue.dev
-                #_"did:plc:2oip3ubsbe2pc7tmbnwsm3i7"))
+                #_"did:plc:dt7fth2hmap6wya7uyyl2g3v" ;;mccue.dev
+                "did:plc:2oip3ubsbe2pc7tmbnwsm3i7"))
 
   (def oracle-jdk
     ((requiring-resolve 'dev.mccue.repository.jmod/procure)
@@ -150,7 +150,7 @@
   (defn consume-many
     [i])
 
-  (let [name-version-blob+infos (for [[name infos] (group-by (comp :name :module-info) oracle-jdk)]
+  (let [name-version-blob+infos (for [[name infos] (group-by (comp :name :module-info) vegeta)]
                                   (let []
                                     [name
                                      (:version (:module-info (first infos)))
@@ -174,8 +174,7 @@
                                   :rkey (str name
                                              (when-let [version version]
                                                (str ":" version)))
-                                  :record {:indexMe   true
-                                           :createdAt (str (OffsetDateTime/now))
+                                  :record {:createdAt (str (OffsetDateTime/now))
                                            :variants  (for [{:keys [blob] :as info} blob+infos]
                                                         {:artifact        blob})})))
   (ingest {:url "file:///Users/emccue/Development/curler/jq.jmod"})
@@ -198,19 +197,58 @@
                                     :record {:variants
                                              [{:artifact   (-> (cheshire/parse-string-strict body)
                                                                (get "blob"))
-                                               :sourcedFrom {"url" (:purl artifact)}}]
-                                             :indexMe   true
+                                               :attributes [{:name "source"
+                                                             :value (:purl artifact)}]}]
                                              :createdAt (str (OffsetDateTime/now))}))))
 
     (doseq [artifact (:artifacts  (dev.mccue.repository.descriptors/vegeta))]
       (ingest (assoc artifact :purl (:url artifact))))
 
+  (do (require '[dev.mccue.repository.descriptors])
+      (require '[dev.mccue.repository.repository :as rep])
+      (require '[dev.mccue.repository.jmod])
+      (let [count       (read-line)
+            descriptors (take (parse-long count)
+                              (dev.mccue.repository.descriptors/get-all-from-index))
+            db          (user/db)]
+        (doseq [descriptor (sort-by :name descriptors)]
+          (println "-----")
+          (println (:name descriptor))
+          (try (doseq [artifact (dev.mccue.repository.jmod/procure {:fetch (partial artifact/fetch-artifact-cached db)} descriptor)]
+                 (let [name-version-blob+infos (for [[name infos] (group-by (comp :name :module-info) artifact)]
+                                                 (let []
+                                                   [name
+                                                    (:version (:module-info (first infos)))
+                                                    (->> infos
+                                                         (map (fn [info]
+                                                                (println "uploading a blob for " name ", " (:target-platform (:module-info info)))
+                                                                (assoc info
+                                                                  :blob (-> (com-atproto-repo-uploadBlob client
+                                                                                                         :body (:bytes info)
+                                                                                                         :content-type "application/java-archive")
+                                                                            (:body)
+                                                                            (cheshire/parse-string-strict)
+                                                                            (get "blob"))))))]))]
+
+
+                   (doseq [[name version blob+infos] name-version-blob+infos]
+                     (println "About to put: " name)
+                     (Thread/sleep 1000)
+                     (com-atproto-repo-putRecord client
+                                                 :collection "dev.mccue.jvm.module"
+                                                 :rkey (str name
+                                                            (when-let [version version]
+                                                              (str ":" version)))
+                                                 :record {:createdAt (str (OffsetDateTime/now))
+                                                          :variants  (for [{:keys [blob] :as info} blob+infos]
+                                                                       {:artifact        blob})}))))
+               (catch Exception e (Exception/.printStackTrace e))))))
     (ingest (assoc
               (artifact/maven-central-artifact
                 :groupId "com.fasterxml.jackson.core"
-                :artifactId "jackson-annotations"
-                :version "2.22")
-              :purl "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.22"))
+                :artifactId "jackson-core"
+                :version "2.22.0")
+              :purl "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.0"))
 
     (doseq [artifact [(assoc
                         (artifact/maven-central-artifact
@@ -249,7 +287,7 @@
                           :version "2025.06.06")
                         :purl "pkg:maven/dev.mccue/symbol@2025.06.06")]]
 
-      (Thread/sleep 5000)
+      (Thread/sleep 1000)
       (ingest artifact)))
 
 (comment

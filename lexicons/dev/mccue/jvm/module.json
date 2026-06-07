@@ -37,32 +37,8 @@
             "type": "ref",
             "ref": "dev.mccue.module#attribute"
           }
-        },
-        "license": {
-          "description": "SPDX License String",
-          "type": "string"
-        },
-        "sourcedFrom": {
-          "type": "union",
-          "refs": [
-            "com.atproto.repo.strongRef",
-            "dev.mccue.jvm.module#url"
-          ],
-          "description": "A reference to where this module was copied from."
         }
       }
-    },
-    "url": {
-      "type": "object",
-      "required": [
-        "url"
-      ],
-      "properties": {
-        "url": {
-          "type": "string"
-        }
-      },
-      "description": "Url where a module was sourced from. May be a package url such as pkg:maven/org.slf4j/slf4j-api@2.0.18 or a \"normal\" url like https://download.oracle.com/java/25/latest/jdk-25_windows-x64_bin.zip."
     },
     "main": {
       "type": "record",
@@ -78,10 +54,6 @@
               "type": "ref",
               "ref": "dev.mccue.jvm.module#variant"
             }
-          },
-          "indexMe": {
-            "type": "boolean",
-            "default": false
           },
           "createdAt": {
             "format": "datetime",

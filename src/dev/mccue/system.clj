@@ -1,6 +1,7 @@
 (ns dev.mccue.system
   (:require [cheshire.core :as cheshire]
             [clojure.tools.logging :as log]
+            [dev.mccue.atproto.did-cache :as did-cache]
             [dev.mccue.environment :as environment]
             [dev.mccue.server :as server]
             [dev.mccue.workers :as workers]
@@ -121,6 +122,9 @@
                                  (.refillGreedy 10 (Duration/ofSeconds 1)))))
       (.build)))
 
+(defn start-did-cache!
+  []
+  (did-cache/create))
 
 (defn start!
   []
@@ -128,18 +132,24 @@
         admin-db (start-admin-db! {})
         session-store (start-session-store! {:system/db db})
         api-rate-limiter (start-api-rate-limiter!)
+        did-cache (start-did-cache!)
         server (start-server! {:system/db db
                                :system/session-store session-store
-                               :system/api-rate-limiter api-rate-limiter})
-        jetstream-websocket-client (start-jetstream-websocket-client! {:system/db db})
-        worker (start-worker! {:system/db db})]
+                               :system/api-rate-limiter api-rate-limiter
+                               :system/did-cache did-cache})
+        jetstream-websocket-client (start-jetstream-websocket-client! {:system/db db
+                                                                       :system/did-cache did-cache})
+        worker (start-worker! {:system/db db
+                               :system/did-cache did-cache})]
+
     {:system/db db
      :system/admin-db admin-db
      :system/session-store session-store
      :system/server server
      :system/worker worker
      :system/jetstream-websocket-client jetstream-websocket-client
-     :system/api-rate-limiter api-rate-limiter}))
+     :system/api-rate-limiter api-rate-limiter
+     :system/did-cache        did-cache}))
 
 (defn stop!
   [{:system/keys [server worker db jetstream-websocket-client]}]
