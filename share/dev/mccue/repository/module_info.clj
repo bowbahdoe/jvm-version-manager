@@ -5,15 +5,15 @@
   (:import (java.io InputStream)
            (java.lang.classfile ClassBuilder ClassFile ClassModel)
            (java.lang.classfile.attribute ModuleAttribute
-                                ModuleAttribute$ModuleAttributeBuilder
-                                ModuleExportInfo
-                                ModuleHashInfo
-                                ModuleHashesAttribute
-                                ModuleMainClassAttribute
-                                ModulePackagesAttribute
-                                ModuleProvideInfo
-                                ModuleRequireInfo
-                                ModuleTargetAttribute)
+                                          ModuleAttribute$ModuleAttributeBuilder
+                                          ModuleExportInfo
+                                          ModuleHashInfo
+                                          ModuleHashesAttribute
+                                          ModuleMainClassAttribute
+                                          ModulePackagesAttribute
+                                          ModuleProvideInfo
+                                          ModuleRequireInfo
+                                          ModuleTargetAttribute)
            (java.lang.classfile.constantpool ClassEntry ModuleEntry PackageEntry Utf8Entry)
            (java.lang.constant ClassDesc ModuleDesc PackageDesc)
            (java.lang.reflect AccessFlag)

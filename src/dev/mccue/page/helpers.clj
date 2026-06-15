@@ -107,6 +107,7 @@
 (defn _500-page-response
   [& _]
   (page-response
+    :status 500
     :title "Internal Error"
     :body [:main
            {:class

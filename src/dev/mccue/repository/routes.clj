@@ -11,6 +11,21 @@
             [next.jdbc :as jdbc])
   (:import (java.lang.module ModuleDescriptor$Version)))
 
+(def solid-box
+  ["margin: 4px"
+   "border: 2px solid black"
+   "border-radius: 2px"
+   "width: fit-content"
+   "height: fit-content"
+   "padding: 4px"])
+
+(def dashed-box
+  ["margin: 4px"
+   "border: 2px dashed black"
+   "border-radius: 2px"
+   "width: fit-content"
+   "height: fit-content"
+   "padding: 4px"])
 
 (defn publish-handler
   [system request]
@@ -62,7 +77,7 @@
                [:div {:id (:id module)}
                 [:a {:style (page-helpers/css ["color: black"])
                      :href  (str "/module/details-by-name/" (:name module))}
-                 [:div {:style (page-helpers/css (conj page-helpers/solid-box "margin-left: 20px"))}
+                 [:div {:style (page-helpers/css (conj solid-box "margin-left: 20px"))}
                   (str (:atproto_handle (:user module)) "/" (:name module))]]])])))
 
 
@@ -122,35 +137,12 @@
        :provides                provides
        :uses                    uses})))
 
-(defn get-module-info-from-cid
-  [db cid]
-  (jsonquery/execute-one!
-    db
-    {:select [:name
-              :version
-              :target_platform
-              [:requires {:select [:module]
-                          :from :repository.module_requires
-                          :join-on [:id :module_id]}]
-              [:exports {:select [:package :to]
-                         :from :repository.module_exports
-                         :join-on [:id :module_id]}]
-              [:uses {:select [:service]
-                      :from :repository.module_uses
-                      :join-on [:id :module_id]}]
-              [:provides {:select [:service :with]
-                          :from :repository.module_provides
-                          :join-on [:id :module_id]}]]
-     :from :repository.module
-     :where [:= :cid cid]}))
-
-
 (defn module-table
   [db to-render]
   [:div {:style (page-helpers/css ["max-width: 800px"
                                    "width: 100%"])}
 
-   [:div {:style (page-helpers/css (concat page-helpers/solid-box
+   [:div {:style (page-helpers/css (concat solid-box
                                            ["width: 100%"
                                             "margin-bottom: 16px"]))}
     [:h1 {:style "margin: 0"} (:module/name to-render)]
@@ -158,14 +150,14 @@
     [:div {:style (page-helpers/css ["display: flex"
                                      "gap: 10px"
                                      "margin-top: 8px"])}
-     [:span {:style (page-helpers/css page-helpers/dashed-box)}
+     [:span {:style (page-helpers/css dashed-box)}
       (str "Version: " (:module/version to-render))]
-     [:span {:style (page-helpers/css page-helpers/dashed-box)}
+     [:span {:style (page-helpers/css dashed-box)}
       (str "Platforms: " (string/join ", " (:module/target_platforms to-render)))]]]
 
    (list
      (when (seq (:requires to-render))
-       [:div {:style  (page-helpers/css (concat page-helpers/solid-box
+       [:div {:style  (page-helpers/css (concat solid-box
                                                 ["width: 100%"
                                                  "margin-bottom: 12px"]))
               :class (classes ["cursor-pointer"])
@@ -184,7 +176,7 @@
              required-module]])]])
 
      (when (seq (:exports to-render))
-       [:div {:style  (page-helpers/css (concat page-helpers/solid-box
+       [:div {:style  (page-helpers/css (concat solid-box
                                                 ["width: 100%"
                                                  "margin-bottom: 12px"]))
               :x-data "{ open: false }"}
@@ -202,7 +194,7 @@
             exported-package])]])
 
      (when (seq (:provides to-render))
-       [:div {:style  (page-helpers/css (concat page-helpers/solid-box
+       [:div {:style  (page-helpers/css (concat solid-box
                                                 ["width: 100%"
                                                  "margin-bottom: 12px"]))
               :x-data "{ open: false }"}
@@ -225,7 +217,7 @@
               provided-service]))]])
 
      (when (seq (:uses to-render))
-       [:div {:style  (page-helpers/css (concat page-helpers/solid-box
+       [:div {:style  (page-helpers/css (concat solid-box
                                                 ["width: 100%"
                                                  "margin-bottom: 12px"]))
               :class (classes ["cursor-pointer"])
@@ -319,7 +311,9 @@
                                                :from :repository.module_requires
                                                :join-on [:id :module_id]}]
                                    [:exports {:select [:package
-                                                       :to
+                                                       [:to {:select [:module]
+                                                             :from :repository.module_exports_to
+                                                             :join-on [:id :module_exports_id]}]
                                                        :mandated
                                                        :synthetic]
                                               :from :repository.module_exports

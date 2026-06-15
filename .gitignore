@@ -13,3 +13,6 @@ migrations/environments/production.properties
 .idea/dataSources
 res/tailwind.css
 node_modules
+.jvm
+jvm
+.idea

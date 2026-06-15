@@ -4,10 +4,12 @@
            (java.time Duration)))
 
 (defn create
-  []
-  (-> (Caffeine/newBuilder)
-      (.expireAfterWrite (Duration/ofHours 1))
-      (.build)))
+  ([]
+   (create (Duration/ofHours 1)))
+  ([expire-after-write]
+   (-> (Caffeine/newBuilder)
+       (.expireAfterWrite expire-after-write)
+       (.build))))
 
 (defn get-handle
   [cache did]
@@ -16,8 +18,8 @@
     (if-let [handle (some-> (diddy/resolve-did-document did)
                             (diddy/resolve-handle))]
       (do (doto cache
-              (Cache/.put did handle)
-              (Cache/.put handle did))
+            (Cache/.put did handle)
+            (Cache/.put handle did))
           handle)
       nil)))
 
