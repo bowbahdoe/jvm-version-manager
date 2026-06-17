@@ -105,7 +105,7 @@ CREATE TABLE atproto.dev_mccue_jvm_module_variant_attribute
     value                           text        not null,
     created_at                      timestamptz not null default now(),
     updated_at                      timestamptz not null default now(),
-    unique (name, value)
+    unique (dev_mccue_jvm_module_variant_id, name, value)
 );
 
 CREATE TRIGGER set_atproto_dev_mccue_jvm_module_variant_attribute_updated_at

@@ -3,6 +3,8 @@
   (:gen-class)
   (:require [babashka.cli :as cli]
             [babashka.fs :as fs]
+            [cheshire.core :as cheshire]
+            [cheshire.core :as json]
             [clj-http.client :as http]
             [clojure.java.io :as io]
             [clojure.pprint]
@@ -10,21 +12,34 @@
             [clojure.xml :as xml]
             [dev.mccue.atproto.cid :as cid]
             [dev.mccue.atproto.diddy :as diddy]
+            [dev.mccue.repository.artifact :as artifact]
+            [dev.mccue.repository.module-info :as mi]
             [honey.sql :as sql]
-            [next.jdbc :as jdbc])
-  (:import (java.io FileNotFoundException PrintStream)
+            [next.jdbc :as jdbc]
+            [progrock.core :as progrock])
+  (:import (clojure.lang ExceptionInfo)
+           (dev.mccue.color.terminal ANSIColor TerminalColor TerminalStyle)
+           (java.io FileNotFoundException IOException PrintStream)
            (java.lang ModuleLayer)
            (java.lang.module ModuleDescriptor$Version ResolvedModule)
            (java.nio.charset StandardCharsets)
            (java.nio.file FileAlreadyExistsException)
+           (java.time OffsetDateTime)
            (java.util StringJoiner)
            (java.util.spi ToolProvider)
+           (java.util.zip ZipException)
+           (org.apache.commons.lang3 ArchUtils SystemUtils)
+           (org.apache.commons.lang3.arch Processor Processor$Arch Processor$Type)
            (org.sqlite SQLiteDataSource)
            (org.xml.sax SAXParseException)))
 
 (def starter-xml
   "<?xml version='1.0' encoding='UTF-8'?>
 <jvm>
+    <index url=\"https://jvm.mccue.dev/index.db\" />
+
+    <artifacts url=\"\" />
+
     <provider>
         <handle>mccue.dev</handle>
         <did>...</did>
@@ -54,51 +69,191 @@
       (println "jvm.xml already exists"))))
 
 
-
-(defn publish
-  [_]
-  (clojure.pprint/pprint _))
+(def ^:dynamic *crash!*
+  (fn [& messages]
+    (binding [*out* *err*]
+      (println (-> (TerminalStyle/builder)
+                   (.foregroundColor ANSIColor/RED)
+                   (.bold)
+                   (.apply (string/join "" (map str messages)))))
+      (System/exit 1))))
 
 (def publish-spec
-  {:username {:desc    "Username (handle) for your account on ATProto"
-              :require true}
-   :password {:desc    "Password for your account on ATProto"
-              :require true}
-   :force    {:desc    "Force publishing, even if another record already exists"
-              :coerce  :boolean
-              :default false}})
+  {:username {:desc    "Username (handle) for your account on ATProto"}
+   :password {:desc    "Password for your account on ATProto"}
+   :attribute {:coerce [(fn [e]
+                          (let [[k v] (string/split e #"=" 2)]
+                            {:name k
+                             :value v}))]}
+   :append    {:coerce :boolean
+               :desc   "Add to list of existing variants, even if a published version already exists"
+               :default false}
+   :path      {:require true
+               :desc "Path to the module to publish"}})
 
-(def index-spec
-  {:index-url  {:desc    "The host to use to retrieve the index."
-                :default "https://jvm.mccue.dev/index.db"}
-   :cache-path {:desc    "The directory to cache artifacts in."
-                :default (str (fs/path ".jvm" "cache"))}})
+(defn publish
+  [{:keys [opts args]}]
+  (let [{:keys [username password attribute append path]} opts
+        username (or username (System/getenv "ATPROTO_USERNAME"))
+        password (or password (System/getenv "ATPROTO_PASSWORD"))]
+    (when-not (seq username)
+      (*crash!* "atproto username must be specified via --username or env variable ATPROTO_USERNAME"))
+    (when-not (seq password)
+      (*crash!* "atproto password must be specified via --password or env variable ATPROTO_PASSWORD"))
 
-(defn index
+    (let [server   (some-> (diddy/get-did username)
+                           (diddy/resolve-did-document)
+                           (diddy/resolve-service-endpoint))
+          _        (when-not server
+                     (*crash!* "Could not resolve service endpoint for " username))
+          create-session-endpoint "/xrpc/com.atproto.server.createSession"]
+      (let [[accessJwt did] (try
+                              (let [session (http/post (str server create-session-endpoint)
+                                                       {:headers {"Content-Type" "application/json"}
+                                                        :body (json/generate-string
+                                                                {:identifier username
+                                                                 :password   password})})
+                                    {:keys [accessJwt did]} (json/parse-string-strict (:body session) keyword)]
+                                [accessJwt did])
+                              (catch ExceptionInfo e
+                                (when (= (:status (ex-data e)) 400)
+                                  (*crash!* "Unable to authenticate. Double check username and password."))
+                                (throw e)))]
+        (let [archive-bytes (or
+                              (:archive-bytes opts)
+                              (try
+                                (fs/read-all-bytes (fs/path path))
+                                (catch IOException e
+                                  (*crash!* "Error reading module: " (.getMessage e)))))]
+          (try
+            (let [entries (artifact/module-info-entries-from-archive archive-bytes)]
+              (cond
+                (= (count entries) 0)
+                (*crash!* "No module-info entries found in archive")
+
+                (> (count entries) 1)
+                (*crash!* "More than one module-info entry found in archive")
+
+                :else
+                (let [[{:keys [bytes]}] entries
+                      module-info            (mi/from-bytes bytes)]
+                  (let [rkey (str (:name module-info)
+                                  (when (:version module-info)
+                                    (str ":" (:version module-info))))]
+                    (let [{:keys [body]}
+                          (http/post (str server "/xrpc/com.atproto.repo.uploadBlob")
+                                     {:body archive-bytes
+                                      :content-type "application/java-archive"
+                                      :headers {"Authorization" (str "Bearer " accessJwt)}})]
+
+                      (try
+                        (let [existing (try
+                                         (-> (http/get (str server "/xrpc/com.atproto.repo.getRecord")
+                                                       {:headers {"Content-Type" "application/json"
+                                                                  "Authorization" (str "Bearer " accessJwt)}
+                                                        :query-params {:collection "dev.mccue.jvm.module"
+                                                                       :rkey       rkey
+                                                                       :repo       did}})
+                                             (:body)
+                                             (json/parse-string-strict keyword))
+                                         (catch ExceptionInfo e
+                                           (if (and (= (:status (ex-data e)) 400)
+                                                    (= (-> (json/parse-string-strict (:body (ex-data e)))
+                                                           (get "error"))
+                                                       "RecordNotFound"))
+                                             nil
+                                             (throw e))))]
+                          (when (and (not append) existing)
+                            (*crash!* "Module " rkey " already published."))
+                          (http/post (str server "/xrpc/com.atproto.repo.putRecord")
+                                     {:headers {"Content-Type" "application/json"
+                                                "Authorization" (str "Bearer " accessJwt)}
+                                      :body    (json/generate-string
+                                                 {:collection "dev.mccue.jvm.module"
+                                                  :rkey       rkey
+                                                  :repo       did
+                                                  :swapRecord (if existing (:cid existing) nil)
+                                                  :record     {:createdAt (str (OffsetDateTime/now))
+                                                               :indexMe   true
+                                                               :variants  (let [artifact-blob (-> (json/parse-string-strict body keyword)
+                                                                                                  (get :blob))]
+                                                                            (if existing
+                                                                              (let [existing-variants (get-in existing [:value :variants])
+                                                                                    already-published (seq
+                                                                                                        (filter
+                                                                                                          (fn [variant]
+                                                                                                            (and
+                                                                                                              (= (:artifact variant)
+                                                                                                                 artifact-blob)
+                                                                                                              (= (sort-by :name (seq attribute))
+                                                                                                                 (sort-by :name (seq (:attributes variant))))))
+                                                                                                          existing-variants))]
+                                                                                (if already-published
+                                                                                  (binding [*out* *err*]
+                                                                                    (println (str "warning: module " rkey " with the exact same artifact and attributes already published")))
+                                                                                  (conj existing-variants {:artifact    artifact-blob
+                                                                                                           :attributes (seq attribute)})))
+                                                                              [{:artifact    artifact-blob
+                                                                                :attributes (seq attribute)}]))}})}))
+
+                        (catch ExceptionInfo e
+                          (throw e))))
+                    (println (-> (TerminalStyle/builder)
+                                 (.bold)
+                                 (.apply (str "Published module " rkey))))))))
+            (catch ZipException e
+              (*crash!* "Module is not a well formed zip file: " (.getMessage e)))
+            (catch ExceptionInfo e
+              (.printStackTrace e))))))))
+
+(def maven-import-spec
+  (merge (dissoc publish-spec :path)
+         {:groupId {:require true}}
+         {:artifactId {:require true}}
+         {:version {:require true}}
+         {:type {:default "jar"}}
+         {:classifier {}}
+         {:repository {:default "https://repo1.maven.org/maven2"}}))
+
+(defn maven-import
   [{:keys [opts]}]
-  (let [path (:index-url opts)
-        index-db-path (fs/path (:cache-path opts) "index.db")]
-    (println "Downloading latest index from" path)
-    (fs/create-dirs (:cache-path opts))
-    (let [index-db (:body (http/get path
-                                    {:as :byte-array}))]
-      (fs/write-bytes (io/file (str index-db-path)) index-db))))
+  (let [artifact-bytes (-> (http/get (str (:repository opts)
+                                          "/"
+                                          (string/replace (:groupId opts) "." "/")
+                                          "/"
+                                          (:artifactId opts)
+                                          "/"
+                                          (:version opts)
+                                          "/"
+                                          (str (:artifactId opts) "-" (:version opts)
+                                               (when (:classifier opts)
+                                                 (str "-" (:classifier opts)))
+                                               "."
+                                               (:type opts)))
+                                     {:as :byte-array})
+                           (:body))]
+    (publish {:opts (-> opts
+                        (assoc :archive-bytes artifact-bytes)
+                        (update :attribute conj {:name "purl"
+                                                 :value (str "pkg:maven/" (:groupId opts) "/" (:artifactId opts) "@" (:version opts)
+                                                             (let [query-params (string/join "&"
+                                                                                            [(when (not= (:type opts) "jar")
+                                                                                               (str "type=" (:type opts)))
+                                                                                             (when (:classifier opts)
+                                                                                               (str "classifier=" (:classifier opts)))])]
+                                                               (when (seq query-params)
+                                                                 (str "?" query-params))))}))})))
+
 
 (def resolve-spec
   {:offline {:coerce :boolean
              :desc "Run module resolution offline"}
-   :index-host {:desc    "The host to use to retrieve the index."
-                :default "https://jvm.mccue.dev"}
+   :index-url {:desc "The url to use to retrieve the index."}
    :cache-path {:desc    "The directory to cache artifacts in."
-                :default (str (fs/path ".jvm" "cache"))}
+                :default (str (fs/path ".jvm"))}
    :artifact-host {:default "https://jvm.mccue.dev/module/"}})
 
 
-(def ^:dynamic *crash!*
-  (fn [& messages]
-    (binding [*out* *err*]
-      (println (string/join "" (map str messages)))
-      (System/exit 1))))
 
 (defn expect-string-content!
   [element error]
@@ -220,6 +375,13 @@
             :else
             (*crash!* "Unknown element in <provider>: <" (name (:tag child)) ">")))))))
 
+(defn interpret-index
+  [index]
+  (let [{:keys [url]} (:attrs index)]
+    (when-not url
+      (*crash!* "<index> must have a url"))
+    {:url url}))
+
 (defn interpret-xml
   [xml]
   (let [root-tag (:tag xml)]
@@ -227,23 +389,32 @@
       (*crash!* "Root element should be <jvm>, not <" (name root-tag) ">")
       (loop [[child & rest] (:content xml)
              providers      []
-             modules        []]
+             modules        []
+             index          nil]
         (cond
           (not child)
           {:providers providers
-           :modules   modules}
+           :modules   modules
+           :index     index}
 
           (= (:tag child) :provider)
           (recur
             rest
             (conj providers (interpret-provider child))
-            modules)
+            modules
+            index)
 
           (= (:tag child) :module)
           (recur
             rest
             providers
-            (conj modules (interpret-module child))))))))
+            (conj modules (interpret-module child))
+            index)
+
+          (= (:tag child) :index)
+          (if index
+            (*crash!* "Multiple index sources provided")
+            (recur rest providers modules (interpret-index child))))))))
 
 (defn check-modules-have-listed-provider!
   [providers modules]
@@ -362,6 +533,39 @@
     (doto (SQLiteDataSource.)
       (.setUrl (str "jdbc:sqlite:" index-db-path)))))
 
+(defn expected-os
+  []
+  (cond
+    SystemUtils/IS_OS_WINDOWS "windows"
+    SystemUtils/IS_OS_MAC_OSX "macos"
+    SystemUtils/IS_OS_LINUX   "linux"
+    :else                     (*crash!* "Unhandled os " (System/getProperty "os.name"))))
+
+(defn expected-arch
+  []
+  (let [processor (ArchUtils/getProcessor)]
+    (condp = [(Processor/.getType processor) (Processor/.getArch processor)]
+      [Processor$Type/AARCH_64 Processor$Arch/BIT_64] "aarch64"
+      [Processor$Type/X86      Processor$Arch/BIT_64] "amd64"
+      (*crash!* "Unhandled cpu architecture "  (System/getProperty "os.arch")))))
+
+(defn expected-target-platform
+  []
+  (str
+    (expected-os)
+    "-"
+    (expected-arch)))
+
+(defn pull-attributes
+  [db published-module-id]
+  (->> (jdbc/execute! db (sql/format
+                           {:select [:name :value]
+                            :from :published_module_attribute
+                            :where [:= :published_module_id published-module-id]}))
+       (map (fn [{:published_module_attribute/keys [name value]}]
+              [name value]))
+       (into {})))
+
 (defn pick-module-variants
   [db modules]
   (loop [picked []
@@ -371,7 +575,8 @@
       ;; TODO: attributes should be considered too!
       (let [variants (jdbc/execute! db
                                     (sql/format
-                                      {:select [:module.id
+                                      {:select [:published_module.id
+                                                :published_module.module_id
                                                 :module.cid
                                                 :module.name
                                                 :module.version
@@ -381,28 +586,18 @@
                                        :where [:and [:= :published_module.atproto_did (:did module)]
                                                [:= :module.name (:name module)]
                                                [:= :module.version (:version module)]]}))
-            os-name (System/getProperty "os.name")
-            os-arch (System/getProperty "os.arch")
-            expected-platform (str (cond
-                                     (string/includes? (String/.toLowerCase os-name) "mac")
-                                     "macos"
 
-                                     (string/includes? (String/.toLowerCase os-name) "win")
-                                     "windows"
-
-                                     :else
-                                     (*crash!* "Unhandled os " os-name))
-                                   "-"
-                                   (cond
-                                     (= os-arch "aarch64")
-                                     "aarch64"
-
-                                     :else
-                                     (*crash!* "Unhandled arch " os-arch)))
+            expected-platform (expected-target-platform)
+            expected-os (expected-os)
+            expected-arch (expected-arch)
             variants (->> variants
                           (filter (fn [variant]
                                     (or (= expected-platform (:module/target_platform variant))
+                                        (let [attrs (pull-attributes db (:published_module/id variant))]
+                                          (and (= expected-os (get attrs "os"))
+                                               (= expected-arch (get attrs "arch"))))
                                         (nil? (:module/target_platform variant))))))]
+
         (cond
           (= (count variants) 0)
           (*crash!* "No appropriate variant found for " (:name module) ". version=" (or (:version module) "<none>") ", target_platform=" expected-platform)
@@ -425,37 +620,60 @@
         (*crash!* "Duplicate declaration for " (:name module))
         (recur (conj seen (:name module)) rest)))))
 
+(def progress-bar-format
+  {:format (str
+             "[:bar] "
+             (-> (TerminalStyle/builder)
+                 (.foregroundColor ANSIColor/BLUE)
+                 (.apply ":progress/:total")))
+   :complete (-> (TerminalStyle/builder)
+                 (.foregroundColor ANSIColor/GREEN)
+                 (.apply "■"))
+   :incomplete (-> (TerminalStyle/builder)
+                   (.foregroundColor ANSIColor/RED)
+                   (.apply "-"))})
 (defn procure-modules!
-  [{:keys [cache-path artifact-host]} modules]
+  [{:keys [cache-path artifact-host offline]} modules]
   (fs/create-dirs cache-path)
   (fs/create-dirs (fs/path cache-path "blobs"))
   (fs/delete-tree (fs/path cache-path "modules"))
   (fs/create-dirs (fs/path cache-path "modules"))
-  (doseq [module modules]
-    (let [blob-path (fs/path cache-path "blobs" (:cid module))]
-      (when-not (fs/exists? blob-path)
-        (let [bytes (-> (http/get (str artifact-host (:cid module))
-                                  {:as :byte-array})
-                        (:body))
-              bytes-cid (cid/bytes->cid-string bytes)]
-          (when-not (= bytes-cid (:cid module))
-            (*crash!* "Content ID of downloaded artifact does not match. expected="
-                    (:cid module)
-                    ", actual="
-                    bytes-cid))
-          (fs/write-bytes blob-path bytes)))
-      (let [bytes   (fs/read-all-bytes blob-path)
-            is-jmod (and (= (first bytes) (byte \J))
-                         (= (second bytes) (byte \M)))
-            module-path (fs/path cache-path
-                                 "modules"
-                                 (str (:name module)
-                                      (when (:version module)
-                                        (str "@" (:version module)))
-                                      (if is-jmod
-                                        ".jmod"
-                                        ".jar")))]
-        (fs/copy blob-path module-path)))))
+  (println (-> (TerminalStyle/builder)
+               (.bold)
+               (.apply "Procuring Modules")))
+  (loop [[module & rest] modules
+         pb              (progrock/progress-bar (count modules))]
+    (progrock/print pb progress-bar-format)
+    (when-not module
+      (progrock/print (progrock/done pb) progress-bar-format))
+    (when module
+      (let [blob-path (fs/path cache-path "blobs" (:cid module))]
+        (when-not (fs/exists? blob-path)
+          (if offline
+            (*crash!* "Cannot procure artifact for module " (:name module) ", --offline")
+            (let [bytes (-> (http/get (str artifact-host (:cid module))
+                                      {:as :byte-array})
+                            (:body))
+                  bytes-cid (cid/bytes->cid-string bytes)]
+              (when-not (= bytes-cid (:cid module))
+                (*crash!* "Content ID of downloaded artifact does not match. expected="
+                        (:cid module)
+                        ", actual="
+                        bytes-cid))
+              (fs/write-bytes blob-path bytes))))
+        (let [bytes   (fs/read-all-bytes blob-path)
+              is-jmod (and (= (first bytes) (byte \J))
+                           (= (second bytes) (byte \M)))
+              module-path (fs/path cache-path
+                                   "modules"
+                                   (str (:name module)
+                                        (when (:version module)
+                                          (str "@" (:version module)))
+                                        (if is-jmod
+                                          ".jmod"
+                                          ".jar")))]
+          (fs/copy blob-path module-path)))
+      (recur rest (progrock/tick pb 1)))))
 
 (defn parse-xml 
   [path]
@@ -465,10 +683,32 @@
       (*crash!* "jvm.xml is malformed"))
     (catch FileNotFoundException _
       (*crash!* "jvm.xml not found"))))
+
+
+(def index-spec
+  {:index-url  {:desc    "The host to use to retrieve the index."}
+   :cache-path {:desc    "The directory to cache artifacts in."
+                :default (str (fs/path ".jvm"))}})
+
+(defn fetch-index
+  [{:keys [opts]}]
+  (let [path (:index-url opts)
+        index-db-path (fs/path (:cache-path opts) "index.db")]
+    (println "Downloading latest index from" path)
+    (fs/create-dirs (:cache-path opts))
+    (let [index-db (:body (http/get path
+                                    {:as :byte-array}))]
+      (fs/write-bytes (io/file (str index-db-path)) index-db))))
+
+
 (defn resolve
   [{:keys [opts]}]
   (let [xml (parse-xml "jvm.xml")
-        {:keys [providers modules]} (interpret-xml xml)]
+        {:keys [providers modules index]} (interpret-xml xml)]
+    (fetch-index {:opts {:index-url (or (:index-url opts)
+                                        (:url index)
+                                        (*crash!* "<index> not specified"))
+                         :cache-path (:cache-path opts)}})
     (check-modules-have-listed-provider! providers modules)
     (when-not (:offline opts)
       (check-provider-handles-match-dids! providers))
@@ -480,7 +720,8 @@
             modules (pick-module-variants db modules)]
         (check-for-missing-modules! db system-modules modules)
         #_(warn-about-mismatched-versions! db system-modules modules)
-        (procure-modules! opts modules)
+        (when (seq modules)
+          (procure-modules! opts modules))
         {:modules modules
          :system-modules system-modules}))))
 
@@ -524,13 +765,15 @@
         (when (not= status-code 0)
           (System/exit status-code))))))
 
+
+
 (def table
   [{:cmds ["init"]
     :fn   init
     :spec init-spec
     :doc  "Creates a blank jvm.xml in the current directory"}
    {:cmds ["index"]
-    :fn   index
+    :fn   fetch-index
     :spec index-spec
     :doc  "Download the latest index of modules."}
    {:cmds ["resolve"]
@@ -544,7 +787,10 @@
    {:cmds ["publish-module"]
     :fn publish
     :spec publish-spec
-    :doc  "Publish a module for use by other people"}])
+    :doc  "Publish a module for use by other people"}
+   {:cmds ["maven-import"]
+    :fn maven-import
+    :spec maven-import-spec}])
 
 (defn -main [& args]
   (cli/dispatch

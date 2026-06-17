@@ -93,8 +93,9 @@
                                                                       :from :repository.module_exports
                                                                       :where [:in :module_id published-module-ids]}))
                                                                  (map :module_exports/id))]
-                                                (when (seq exports)
-                                                  [:in :module_exports_id exports])))
+                                                (if (seq exports)
+                                                  [:in :module_exports_id exports]
+                                                  [:= 1 1])))
                 (transfer! :module_package [:in :module_id published-module-ids])
                 (transfer! :module_hash [:in :module_id published-module-ids])
                 (transfer! :published_module [:= 1 1])

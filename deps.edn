@@ -46,7 +46,10 @@
                                  clj-http/clj-http                      {:mvn/version "3.13.1"}
                                  cheshire/cheshire                      {:mvn/version "6.2.0"}
                                  com.github.ben-manes.caffeine/caffeine {:mvn/version "3.2.4"}
-                                 dev.mccue/color-terminal               {:mvn/version "2024.11.20"}}}
+                                 org.apache.commons/commons-lang3       {:mvn/version "3.20.0"}
+                                 progrock/progrock                      {:mvn/version "1.0.0"}
+                                 dev.mccue/color-terminal               {:mvn/version "2024.11.20"}
+                                 org.apache.commons/commons-compress    {:mvn/version "1.28.0"}}}
            :cli   {:paths ["cli" "share"]
                    :deps {org.xerial/sqlite-jdbc                 {:mvn/version "3.51.3.0"}
                           org.babashka/cli                       {:mvn/version "0.10.69"}
@@ -56,4 +59,7 @@
                           clj-http/clj-http                      {:mvn/version "3.13.1"}
                           cheshire/cheshire                      {:mvn/version "6.2.0"}
                           com.github.ben-manes.caffeine/caffeine {:mvn/version "3.2.4"}
-                          dev.mccue/color-terminal               {:mvn/version "2024.11.20"}}}}}
+                          org.apache.commons/commons-lang3       {:mvn/version "3.20.0"}
+                          progrock/progrock                      {:mvn/version "1.0.0"}
+                          dev.mccue/color-terminal               {:mvn/version "2024.11.20"}
+                          org.apache.commons/commons-compress    {:mvn/version "1.28.0"}}}}}
