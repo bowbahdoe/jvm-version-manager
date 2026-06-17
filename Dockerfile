@@ -22,6 +22,7 @@ RUN rm linux-install.sh
 
 # Copy Project Files Over
 COPY ./src ./src
+COPY ./share ./share
 COPY ./res ./res
 COPY --from=tailwind ./app/res/tailwind.css ./res/tailwind.css
 COPY ./jars ./jars
