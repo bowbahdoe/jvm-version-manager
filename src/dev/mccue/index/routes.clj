@@ -30,13 +30,13 @@
                                (jdbc/execute! postgres-db
                                               (sql/format
                                                 {:select [:column_name]
-                                                 :from :information_schema.columns
-                                                 :where [:and
-                                                         [:= :table_schema "repository"]
-                                                         [:= :table_name (name table)]]})))
-        sqlite-columns   (mapv :name
-                               (jdbc/execute! sqlite-db
-                                              [(str "pragma table_info(" (name table) ")")]))]
+                                                 :from   :information_schema.columns
+                                                 :where  [:and
+                                                          [:= :table_schema "repository"]
+                                                          [:= :table_name (name table)]]})))
+        sqlite-columns (mapv :name
+                             (jdbc/execute! sqlite-db
+                                            [(str "pragma table_info(" (name table) ")")]))]
 
     (mapv keyword
           (sort
@@ -49,7 +49,7 @@
   (let [temp-file (Files/createTempFile "new" ".db" (into-array FileAttribute []))]
     (try
       (jdbc/with-transaction [t db]
-        (let [index  (str temp-file)
+        (let [index (str temp-file)
               new-db (sqlite-db index)
 
               transfer! (fn [table where]
@@ -59,24 +59,24 @@
                                                       (sql/format
                                                         {:select (mapv #(keyword (name table) (name %))
                                                                        columns)
-                                                         :from (keyword (str "repository." (name table)))
-                                                         :where where}
+                                                         :from   (keyword (str "repository." (name table)))
+                                                         :where  where}
                                                         {:quoted true}))]
 
                             (when (seq source)
                               (jdbc/execute! new-db (sql/format
                                                       {:insert-into table
-                                                       :columns columns
-                                                       :values (mapv (apply juxt (mapv #(keyword (name table) (name %))
-                                                                                       columns))
-                                                                     source)}
+                                                       :columns     columns
+                                                       :values      (mapv (apply juxt (mapv #(keyword (name table) (name %))
+                                                                                            columns))
+                                                                          source)}
                                                       {:quoted true})))))]
 
           (let [published-module-ids (->> (jdbc/execute!
                                             t
                                             (sql/format
                                               {:select [:module_id]
-                                               :from :repository.published_module}))
+                                               :from   :repository.published_module}))
                                           (map :published_module/module_id))]
             (if-not (seq published-module-ids)
               (log/warn "No published modules")
@@ -90,8 +90,8 @@
                                                                    t
                                                                    (sql/format
                                                                      {:select [:id]
-                                                                      :from :repository.module_exports
-                                                                      :where [:in :module_id published-module-ids]}))
+                                                                      :from   :repository.module_exports
+                                                                      :where  [:in :module_id published-module-ids]}))
                                                                  (map :module_exports/id))]
                                                 (if (seq exports)
                                                   [:in :module_exports_id exports]
@@ -111,37 +111,37 @@
   [{:system/keys [db did-cache]} request]
   (let [published-modules (jdbc/execute! db (sql/format
                                               {:select-distinct [:repository.published_module.atproto_did]
-                                               :from :repository.published_module
-                                               :order-by [[:repository.published_module.atproto_did :asc]]}))]
-    {:status 200
+                                               :from            :repository.published_module
+                                               :order-by        [[:repository.published_module.atproto_did :asc]]}))]
+    {:status  200
      :headers {"Content-Type" "text/html"}
-     :body (str (hiccup/html
-                  [:ul
-                   (for [provider (sort-by :handle (map (fn [{:published_module/keys [atproto_did]}]
-                                                          {:handle (or (did-cache/get-handle did-cache atproto_did)
-                                                                       atproto_did)
-                                                           :did    atproto_did})
-                                                        published-modules))]
-                     [:li [:a {:href (str "/index/" (:did provider))}
-                           (:handle provider)]])]))}))
+     :body    (str (hiccup/html
+                     [:ul
+                      (for [provider (sort-by :handle (map (fn [{:published_module/keys [atproto_did]}]
+                                                             {:handle (or (did-cache/get-handle did-cache atproto_did)
+                                                                          atproto_did)
+                                                              :did    atproto_did})
+                                                           published-modules))]
+                        [:li [:a {:href (str "/index/" (:did provider))}
+                              (:handle provider)]])]))}))
 
 (defn get-index-provider-did
   [{:system/keys [db]} request]
   (let [provider-did (:provider-did (:path-params request))
         modules (jdbc/execute! db (sql/format
-                               {:select-distinct [:repository.module.name]
-                            :from :repository.published_module
-                                :left-join [:repository.module [:=
-                                                                :repository.published_module.module_id
-                                                                :repository.module.id]]
-                                :where [:= :repository.published_module.atproto_did provider-did]
-                                :order-by [[:repository.module.name :asc]]}))]
-    {:status 200
+                                    {:select-distinct [:repository.module.name]
+                                     :from            :repository.published_module
+                                     :left-join       [:repository.module [:=
+                                                                           :repository.published_module.module_id
+                                                                           :repository.module.id]]
+                                     :where           [:= :repository.published_module.atproto_did provider-did]
+                                     :order-by        [[:repository.module.name :asc]]}))]
+    {:status  200
      :headers {"Content-Type" "text/html"}
-     :body (str (hiccup/html
-                  [:ul
-                   (for [{:module/keys [name]} modules]
-                     [:li [:a {:href (str "/index/" provider-did "/" name)} name]])]))}))
+     :body    (str (hiccup/html
+                     [:ul
+                      (for [{:module/keys [name]} modules]
+                        [:li [:a {:href (str "/index/" provider-did "/" name)} name]])]))}))
 
 
 (defn get-index-provider-did-module-name
@@ -151,77 +151,78 @@
         versions (jdbc/execute! db (sql/format
                                      {:select-distinct [:repository.module.version]
                                       :from            :repository.published_module
-                                      :left-join [:repository.module
-                                                  [:= :repository.published_module.module_id :repository.module.id]]
-                                      :where [:and [:= :repository.module.name module-name]
-                                              [:= :repository.published_module.atproto_did provider-did]]}))]
-    {:status 200
+                                      :left-join       [:repository.module
+                                                        [:= :repository.published_module.module_id :repository.module.id]]
+                                      :where           [:and [:= :repository.module.name module-name]
+                                                        [:= :repository.published_module.atproto_did provider-did]]}))]
+    {:status  200
      :headers {"Content-Type" "text/html"}
-     :body (str (hiccup/html
-                  [:ul
-                   (for [version versions]
-                     [:li [:a {:href (str "/index/" provider-did "/" module-name "/" (:module/version version))}
-                           (:module/version version)]])]))}))
+     :body    (str (hiccup/html
+                     [:ul
+                      (for [version versions]
+                        [:li [:a {:href (str "/index/" provider-did "/" module-name "/" (:module/version version))}
+                              (:module/version version)]])]))}))
 
 
 
 (defn get-index-provider-did-module-name-version
   [{:system/keys [db]} request]
-  (let [module-name  (:module-name (:path-params request))
+  (let [module-name (:module-name (:path-params request))
         provider-did (:provider-did (:path-params request))
-        version      (:version (:path-params request))
+        version (:version (:path-params request))
         _ (println module-name provider-did version)
-        variants     (jdbc/execute! db (sql/format
-                                         {:select [:repository.module.name
-                                                   :repository.module.version
-                                                   :repository.module.target_platform]
-                                          :from :repository.published_module
-                                          :left-join [:repository.module
-                                                      [:= :repository.published_module.module_id :repository.module.id]]
-                                          :where [:and
+        variants (jdbc/execute! db (sql/format
+                                     {:select    [:repository.module.name
+                                                  :repository.module.version
+                                                  :repository.module.target_platform]
+                                      :from      :repository.published_module
+                                      :left-join [:repository.module
+                                                  [:= :repository.published_module.module_id :repository.module.id]]
+                                      :where     [:and
                                                   [:= :repository.module.name module-name]
                                                   [:= :repository.published_module.atproto_did provider-did]
                                                   [:= :repository.module.version version]]}))]
     (println variants)
-    {:status 200
+    {:status  200
      :headers {"Content-Type" "text/html"}
-     :body (str (hiccup/html
-                  (list
-                    (let [first-variant (first variants)]
-                      [:p (:module/name first-variant)
+     :body    (str (hiccup/html
+                     (list
+                       (let [first-variant (first variants)]
+                         [:p (:module/name first-variant)
                           (when (:module/version first-variant)
                             (str "@" (:module/version first-variant)))])
 
-                    [:ul
-                     (for [variant variants]
-                       [:li (str variant)])])))}))
+                       [:ul
+                        (for [variant variants]
+                          [:li (str variant)])])))}))
 
 
 
 (defn get-index-db
   [{:system/keys [db]} request]
-  (println (:headers request))
-  {:status  200
-   :headers {"Content-Type"        "application/octet-stream"
-             "Content-Disposition" "attachment; filename=\"index.db\""}
-   :body   (build-index db)})
+  (let [index (build-index db)]
+    {:status  200
+     :headers {"Content-Type"        "application/octet-stream"
+               "Content-Disposition" "attachment; filename=\"index.db\""
+               "Content-Length"      (str (alength index))}
+     :body    index}))
 
 (defn get-module
   [{:system/keys [db]} request]
-  (let [matching-module        (jdbc/execute-one!
-                                 db
-                                 (sql/format
-                                   {:select [:name :version :artifact.data]
-                                    :from   :repository.module
-                                    :left-join [:repository.artifact
-                                                [:= :repository.module.cid :repository.artifact.cid]]
-                                    :where     [:= :repository.module.cid (:cid (:path-params request))]}))
+  (let [matching-module (jdbc/execute-one!
+                          db
+                          (sql/format
+                            {:select    [:name :version :artifact.data]
+                             :from      :repository.module
+                             :left-join [:repository.artifact
+                                         [:= :repository.module.cid :repository.artifact.cid]]
+                             :where     [:= :repository.module.cid (:cid (:path-params request))]}))
         {:artifact/keys [data]} matching-module
         {:module/keys [name version]} matching-module]
     (if-not data
       {:status 404
        :body   {:error "Module content not in this repo."}}
-      {:status 200
+      {:status  200
        :headers {"Content-Type"        "application/java-archive"
                  "Content-Disposition" (format "attachment; filename=\"%s\""
                                                (doto (str name
@@ -232,7 +233,7 @@
                                                             ".jmod"
                                                             ".jar"))
                                                  (println)))}
-       :body   data})))
+       :body    data})))
 
 
 (defn routes
