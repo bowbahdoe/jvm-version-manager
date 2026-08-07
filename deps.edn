@@ -26,7 +26,7 @@
         com.nimbusds/oauth2-oidc-sdk           {:mvn/version "11.37.2"}
         buddy/buddy-auth                       {:mvn/version "3.0.323"}
         jarohen/chime                          {:mvn/version "0.3.3"}
-        dev.mccue/duke                         {:local/root "jars/duke-2025.11.09-uber.jar"}
+        dev.mccue/duke                         {:mvn/version "2026.06.27"}
         com.bucket4j/bucket4j_jdk17-core       {:mvn/version "8.19.0"}
         com.github.ben-manes.caffeine/caffeine {:mvn/version "3.2.4"}}
  :paths ["src" "share" "res"]

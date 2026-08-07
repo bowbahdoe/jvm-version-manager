@@ -23,9 +23,10 @@
                      "/"
                      version
                      "/"
-                     (str artifactId (when classifier
-                                       (str "-" classifier))
+                     (str artifactId
                           "-" version
+                          (when classifier
+                            (str "-" classifier))
                           (if type
                             (case type
                               :jar ".jar"

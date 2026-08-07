@@ -2,6 +2,7 @@
   <dictionary name="project">
     <words>
       <w>atproto</w>
+      <w>dpop</w>
       <w>htmx</w>
       <w>jetstream</w>
       <w>jmod</w>

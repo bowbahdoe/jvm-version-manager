@@ -176,5 +176,25 @@ import_maven_libraries:
     export $(cat .env | xargs) && \
         just jvm maven-import --append --groupId com.github.ben-manes.caffeine --artifactId caffeine --version 3.2.4
 
+    export $(cat .env | xargs) && \
+        just jvm maven-import --append --groupId org.junit.jupiter --artifactId junit-jupiter-engine --version 6.1.0
+
+    export $(cat .env | xargs) && \
+        just jvm maven-import --append --groupId org.junit.platform --artifactId junit-platform-launcher --version 6.1.0
+
+    export $(cat .env | xargs) && \
+        just jvm maven-import --append --groupId org.xerial --artifactId sqlite-jdbc --version 3.53.2.0
+
+    export $(cat .env | xargs) && \
+        just jvm maven-import --append --groupId com.github.slugify --artifactId slugify --version 3.0.7
+
+    export $(cat .env | xargs) && \
+        just jvm maven-import --append --groupId com.sanctionco.jmail --artifactId jmail --version 2.1.0
+
+    export $(cat .env | xargs) && \
+        just jvm maven-import --append --groupId com.fasterxml.uuid --artifactId java-uuid-generator --version 5.2.0
+
+    export $(cat .env | xargs) && \
+        just jvm maven-import --append --groupId com.uwyn.rife2 --artifactId bld --version 2.3.0
 
 

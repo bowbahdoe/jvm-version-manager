@@ -1,0 +1,55 @@
+{
+  "id": "dev.mccue.jigsaw.module",
+  "lexicon": 1,
+  "defs": {
+    "attribute": {
+      "type": "object",
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+
+    "main": {
+      "type": "record",
+      "description": "A JVM Module published for wider consumption.",
+      "key": "tid",
+      "record": {
+        "properties": {
+          "artifact": {
+            "accept": [
+              "application/zip",
+              "application/java-archive"
+            ],
+            "maxSize": 10000000,
+            "type": "blob"
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "dev.mccue.module#attribute"
+            }
+          },
+          "createdAt": {
+            "format": "datetime",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact",
+          "createdAt"
+        ],
+        "type": "object"
+      }
+    }
+  }
+}

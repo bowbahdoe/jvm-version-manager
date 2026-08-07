@@ -26,7 +26,7 @@
     (when (not= version 1)
       (throw (IllegalArgumentException. "Version must be 1.")))
     (let [codec (InputStream/.read is)]
-      (when (< version 0)
+      (when (< codec 0)
         (throw (IllegalArgumentException. "Reached end of bytes just before codec byte.")))
       (when (not (#{0x55 0x71} codec))
         (throw (IllegalArgumentException. (str "Codec must be one of 0x55 or 0x71. Got " codec))))
@@ -107,8 +107,6 @@
   (-> bytes
       (bytes->sha256-bytes)
       (sha256-bytes->cid-string)))
-
-
 
 (comment
   (from-string "bafkreia7vvxgxz2vo6a6juzxfhkjvyonzd65u37eo65qzrum4ni6v7p3vm")

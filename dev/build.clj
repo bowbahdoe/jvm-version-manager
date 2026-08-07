@@ -2,7 +2,7 @@
   (:require [clojure.tools.build.api :as b]))
 
 (def class-dir "target/classes")
-(def uber-file "target/jvm.jar")
+(def uber-file "target/jigsaw.jar")
 
 ;; delay to defer side effects (artifact downloads)
 (def basis (delay (b/create-basis {:project "deps.edn"

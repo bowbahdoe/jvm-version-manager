@@ -14,31 +14,33 @@
   (binding [cli/*crash!* (fn [& args]
                            (throw (Exception. (string/join "" (map str args)))))]
     (t/testing "Parse blank xml"
-      (t/is (= {:modules [] :providers []}
+      (t/is (= {:modules [] :providers [] :index nil}
                (cli/interpret-xml
                  (x "<?xml version='1.0' encoding='UTF-8'?>
-<jvm>
-</jvm>")))))
+<jigsaw>
+</jigsaw>")))))
     (t/testing "One provider"
-      (t/is (= {:modules [] :providers [{:handle "test" :did "abc"}]}
+      (t/is (= {:modules [] :providers [{:handle "test" :did "abc"}] :index nil}
                (cli/interpret-xml
                  (x "<?xml version='1.0' encoding='UTF-8'?>
-<jvm>
+<jigsaw>
   <provider> <handle> test </handle> <did> abc </did> </provider>
-</jvm>")))))
+</jigsaw>")))))
     (t/testing "One module"
       (t/is (= {:modules [{:provider "ethan-test.bsky.social"
                            :name     "dev.mccue.json"
-                           :version  "2024.11.20"}] :providers []}
+                           :version  "2024.11.20"}]
+                :providers []
+                :index nil}
                (cli/interpret-xml
                  (x "<?xml version='1.0' encoding='UTF-8'?>
-<jvm>
+<jigsaw>
     <module>
         <provider>  ethan-test.bsky.social</provider>
         <name>dev.mccue.json  </name>
         <version>2024.11.20</version>
     </module>
-</jvm>")))))
+</jigsaw>")))))
 
     (t/testing "Multiple providers and multiple modules"
       (t/is (= {:modules   [{:provider "ethan-test.bsky.social"
@@ -64,10 +66,11 @@
                 :providers [{:handle "ethan-test.bsky.social"
                              :did    "did:plc:2oip3ubsbe2pc7tmbnwsm3i7"}
                             {:handle "mccue.dev"
-                             :did    "did:plc:dt7fth2hmap6wya7uyyl2g3v"}]}
+                             :did    "did:plc:dt7fth2hmap6wya7uyyl2g3v"}]
+                :index nil}
                (cli/interpret-xml
                  (x "<?xml version='1.0' encoding='UTF-8'?>
-<jvm>
+<jigsaw>
     <provider>
         <handle>ethan-test.bsky.social</handle>
         <did>did:plc:2oip3ubsbe2pc7tmbnwsm3i7</did>
@@ -113,40 +116,40 @@
         <provider>ethan-test.bsky.social</provider>
         <name>org.jspecify</name>
     </module>
-</jvm>
+</jigsaw>
 ")))))
     (t/testing "Attributes syntax"
       (t/testing "One provider"
-        (t/is (= {:modules [] :providers [{:handle "test" :did "abc"}]}
+        (t/is (= {:modules [] :providers [{:handle "test" :did "abc"}] :index nil}
                  (cli/interpret-xml
                    (x "<?xml version='1.0' encoding='UTF-8'?>
-<jvm>
+<jigsaw>
   <provider handle=\"  test\" did=\"abc  \" />
-</jvm>")))))
+</jigsaw>")))))
 
       (t/testing "One module"
         (t/is (= {:modules [{:provider "aaa"
                              :name     "bbb"
-                             :version  "5"}] :providers []}
+                             :version  "5"}] :providers [] :index nil}
                  (cli/interpret-xml
                    (x "<?xml version='1.0' encoding='UTF-8'?>
-<jvm>
+<jigsaw>
     <module provider=\"aaa\" name=\"   bbb  \" version=\"5\" />
-</jvm>")))))
+</jigsaw>")))))
       (t/testing "Mix and match is a no go"
         (t/is (thrown? Exception (cli/interpret-xml
                                    (x "<?xml version='1.0' encoding='UTF-8'?>
-<jvm>
+<jigsaw>
     <module provider=\"aaa\" name=\"   bbb  \">
         <version>5</version>
     </module>
-</jvm>"))))
+</jigsaw>"))))
         (t/is (thrown? Exception (cli/interpret-xml
                                    (x "<?xml version='1.0' encoding='UTF-8'?>
-<jvm>
+<jigsaw>
   <provider did=\"abc  \">
      <handle>...</handle>
   </provider>
-</jvm>"))))))))
+</jigsaw>"))))))))
 
 

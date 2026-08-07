@@ -45,19 +45,34 @@
   (resolve-did-document (get-did "mccue.dev")))
 
 (defn resolve-did-document
-  [did]
-  ;; TODO: did:web
-  (try
-    (cheshire/parse-string-strict
-      (slurp (str "https://plc.directory/" did)))
-    (catch Exception _ nil)))
+  ([did on-exception]
+   (cond
+     (string/starts-with? did "did:web:")
+     (try
+       (cheshire/parse-string-strict
+         (slurp (str "https://"
+                     (string/replace-first did "did:web:" "")
+                     "/.well-known/did.json")))
+       (catch Exception e (on-exception e)))
+
+     (string/starts-with? did "did:plc:")
+     (try
+       (cheshire/parse-string-strict
+         (slurp (str "https://plc.directory/" did)))
+       (catch Exception e (on-exception e)))
+
+     :else
+     (on-exception (ex-info "Unknown did type. "
+                            {:did did}))))
+  ([did]
+   (resolve-did-document did (constantly nil))))
 
 (defn resolve-handle
-  [did-document]
-  (->> (get did-document "alsoKnownAs")
-       (filter #(string/starts-with? % "at://"))
-       (map #(string/replace-first % "at://" ""))
-       (first)))
+  ([did-document]
+   (->> (get did-document "alsoKnownAs")
+        (filter #(string/starts-with? % "at://"))
+        (map #(string/replace-first % "at://" ""))
+        (first))))
 
 (defn resolve-service-endpoint
   [did-document]

@@ -1,9 +1,22 @@
+(ns dev.mccue.jvm.cli)
+
+(let [version (try
+                (eval `(Runtime/version))
+                (catch Throwable t
+                  (binding [*out* *err*]
+                    (println "Java 25 and up required!")
+                    (System/exit 1))))]
+  (when (< (.compareTo version (java.lang.Runtime$Version/parse "25")) 0)
+    (binding [*out* *err*]
+      (println (str "Java 25 and up required! (Using " (str version) ")"))
+      (System/exit 1))))
+
 (ns dev.mccue.jvm.cli
   (:refer-clojure :exclude [resolve])
   (:gen-class)
   (:require [babashka.cli :as cli]
             [babashka.fs :as fs]
-            [cheshire.core :as cheshire]
+            [cheshire.core]
             [cheshire.core :as json]
             [clj-http.client :as http]
             [clojure.java.io :as io]
@@ -18,7 +31,7 @@
             [next.jdbc :as jdbc]
             [progrock.core :as progrock])
   (:import (clojure.lang ExceptionInfo)
-           (dev.mccue.color.terminal ANSIColor TerminalColor TerminalStyle)
+           (dev.mccue.color.terminal ANSIColor TerminalStyle)
            (java.io FileNotFoundException IOException PrintStream)
            (java.lang ModuleLayer)
            (java.lang.module ModuleDescriptor$Version ResolvedModule)
@@ -35,22 +48,13 @@
 
 (def starter-xml
   "<?xml version='1.0' encoding='UTF-8'?>
-<jvm>
+<jigsaw>
     <index url=\"https://jvm.mccue.dev/index.db\" />
 
-    <artifacts url=\"\" />
-
-    <provider>
-        <handle>mccue.dev</handle>
-        <did>...</did>
+    <provider handle=\"mccue.dev\">
+        <module name=\"dev.mccue.json\" version=\"2024.11.20\" />
     </provider>
-
-    <module>
-        <provider>mccue.dev</provider>
-        <name>dev.mccue.json</name>
-        <version>2024.11.20</version>
-    </module>
-</jvm>")
+</jigsaw>")
 
 (def init-spec
   {:force {:alias :f
@@ -60,13 +64,13 @@
 (defn init
   [{:keys [opts]}]
   (when (:force opts)
-    (fs/delete-if-exists "jvm.xml"))
+    (fs/delete-if-exists "jigsaw.xml"))
   (try
-    (fs/write-bytes (fs/create-file "jvm.xml")
+    (fs/write-bytes (fs/create-file "jigsaw.xml")
                     (String/.getBytes starter-xml StandardCharsets/UTF_8))
-    (println "jvm.xml created")
+    (println "jigsaw.xml created")
     (catch FileAlreadyExistsException _
-      (println "jvm.xml already exists"))))
+      (println "jigsaw.xml already exists"))))
 
 
 (def ^:dynamic *crash!*
@@ -137,9 +141,7 @@
                 :else
                 (let [[{:keys [bytes]}] entries
                       module-info            (mi/from-bytes bytes)]
-                  (let [rkey (str (:name module-info)
-                                  (when (:version module-info)
-                                    (str ":" (:version module-info))))]
+                  (let [rkey (:name module-info)]
                     (let [{:keys [body]}
                           (http/post (str server "/xrpc/com.atproto.repo.uploadBlob")
                                      {:body archive-bytes
@@ -250,8 +252,8 @@
              :desc "Run module resolution offline"}
    :index-url {:desc "The url to use to retrieve the index."}
    :cache-path {:desc    "The directory to cache artifacts in."
-                :default (str (fs/path ".jvm"))}
-   :artifact-host {:default "https://jvm.mccue.dev/module/"}})
+                :default (str (fs/path ".jigsaw"))}
+   :repository {:default "https://jvm.mccue.dev/module/"}})
 
 
 
@@ -261,119 +263,49 @@
     (*crash!* error)
     (string/join "" (:content element))))
 
-(defn interpret-provider
-  [provider]
-  (let [no-handle! #(*crash!* "<handle> not specified for provider")
-        no-did!    #(*crash!* "<did> not specified for provider")]
-    (let [{:keys [handle did]} (:attrs provider)]
-      (cond
-        (and (seq (:content provider))
-             (or handle did))
-        (*crash!* "Cannot provider module information both in xml attributes and as children")
-
-        (or (some? handle) (some? did))
-        (do
-          (when (nil? handle) (no-handle!))
-          (when (nil? did) (no-did!))
-          {:handle (String/.strip handle) :did (String/.strip did)})
-
-        :else
-        (loop [[child & rest] (:content provider)
-               handle         nil
-               did            nil]
-          (cond
-            (nil? child)
-            (cond
-              (nil? handle)
-              (no-handle!)
-
-              (nil? did)
-              (no-did!)
-
-              :else
-              {:handle (String/.strip handle) :did (String/.strip did)})
-
-            (= (:tag child) :handle)
-            (if handle
-              (*crash!* "More than one <handle> specified for provider")
-              (recur rest
-                     (expect-string-content! child "Nested elements are not allowed as part of a <handle>")
-                     did))
-
-            (= (:tag child) :did)
-            (if did
-              (*crash!* "More than one <did> specified for provider")
-              (recur rest
-                     handle
-                     (expect-string-content! child "Nested elements are not allowed as part of a <did>")))
-
-            :else
-            (*crash!* "Unknown element in <provider>: <" (name (:tag child)) ">")))))))
 
 (defn interpret-module
   [module]
-  (let [no-name! #(*crash!* "<name> not specified for module")
-        no-provider! #(*crash!* "<provider> not specified for module")]
-    (let [{:keys [name provider version]} (:attrs module)]
+  (let [no-name! #(*crash!* "name not specified for module")]
+    (let [{:keys [name version]} (:attrs module)]
       (cond
-        (and (seq (:content module))
-             (or name provider version))
-        (*crash!* "Cannot specify module information both in xml attributes and as children")
-
-        (or (some? name) (some? provider) (some? version))
+        (or (some? name) (some? version))
         (do
           (when (nil? name) (no-name!))
-          (when (nil? provider) (no-provider!))
           {:name (String/.strip name)
-           :provider (String/.strip provider)
            :version (some-> version (String/.strip))})
 
         :else
-        (loop [[child & rest] (:content module)
-               name           nil
-               provider       nil
-               version        nil]
+        (throw (Exception. ""))))))
+
+(defn interpret-provider
+  [provider]
+  (let [no-handle!  #(*crash!* "handle not specified for provider")
+        no-modules! #(*crash!* "provider " % " has no modules specified")]
+    (let [{:keys [handle]} (:attrs provider)]
+      (when (nil? handle) (no-handle!))
+      (cond
+        :else
+        (loop [[child & rest] (:content provider)
+               modules        []]
           (cond
             (nil? child)
             (cond
-              (nil? module)
-              (*crash!* "<name> not specified for module")
-
-              (nil? provider)
-              (*crash!* "<provider> not specified for module")
+              (empty? modules)
+              (no-modules!)
 
               :else
-              {:name (String/.strip name)
-               :provider (String/.strip provider)
-               :version (some-> version (String/.strip))})
+              {:handle (String/.strip handle)})
 
-            (= (:tag child) :name)
-            (if name
-              (*crash!* "More than one <name> specified for provider")
+            (= (:tag child) :module)
+            (if handle
+              (*crash!* "More than one <handle> specified for provider")
               (recur rest
-                     (expect-string-content! child "Nested elements are not allowed as part of a <name>")
-                     provider
-                     version))
-
-
-            (= (:tag child) :provider)
-            (if provider
-              (*crash!* "More than one <provider> specified for provider")
-              (recur rest
-                     name
-                     (expect-string-content! child "Nested elements are not allowed as part of a <provider>")
-                     version))
-
-            (= (:tag child) :version)
-            (if version
-              (*crash!* "More than one <version> specified for provider")
-              (recur rest
-                     name
-                     provider
-                     (expect-string-content! child "Nested elements are not allowed as part of a <version>")))
+                     (conj modules (interpret-module child))))
 
             :else
             (*crash!* "Unknown element in <provider>: <" (name (:tag child)) ">")))))))
+
 
 (defn interpret-index
   [index]
@@ -382,39 +314,44 @@
       (*crash!* "<index> must have a url"))
     {:url url}))
 
+(defn interpret-repository
+  [index]
+  (let [{:keys [url]} (:attrs index)]
+    (when-not url
+      (*crash!* "<repository> must have a url"))
+    {:url url}))
+
 (defn interpret-xml
   [xml]
   (let [root-tag (:tag xml)]
-    (if (not= root-tag :jvm)
-      (*crash!* "Root element should be <jvm>, not <" (name root-tag) ">")
+    (if (not= root-tag :jigsaw)
+      (*crash!* "Root element should be <jigsaw>, not <" (name root-tag) ">")
       (loop [[child & rest] (:content xml)
              providers      []
-             modules        []
-             index          nil]
+             index          nil
+             repository     nil]
         (cond
           (not child)
           {:providers providers
-           :modules   modules
            :index     index}
 
           (= (:tag child) :provider)
           (recur
             rest
             (conj providers (interpret-provider child))
-            modules
-            index)
+            index
+            repository)
 
-          (= (:tag child) :module)
-          (recur
-            rest
-            providers
-            (conj modules (interpret-module child))
-            index)
 
           (= (:tag child) :index)
           (if index
             (*crash!* "Multiple index sources provided")
-            (recur rest providers modules (interpret-index child))))))))
+            (recur rest providers (interpret-index child) repository))
+
+          (= (:tag child) :repository)
+          (if repository
+            (*crash!* "Multiple repositories provided")
+            (recur rest providers index (interpret-repository child))))))))
 
 (defn check-modules-have-listed-provider!
   [providers modules]
@@ -536,18 +473,20 @@
 (defn expected-os
   []
   (cond
-    SystemUtils/IS_OS_WINDOWS "windows"
-    SystemUtils/IS_OS_MAC_OSX "macos"
-    SystemUtils/IS_OS_LINUX   "linux"
-    :else                     (*crash!* "Unhandled os " (System/getProperty "os.name"))))
+    SystemUtils/IS_OS_WINDOWS  "windows"
+    SystemUtils/IS_OS_MAC_OSX  "macos"
+    SystemUtils/IS_OS_LINUX    "linux"
+    SystemUtils/IS_OS_FREE_BSD "bsd"
+    :else                      (*crash!* "Unhandled os " (System/getProperty "os.name"))))
 
 (defn expected-arch
   []
-  (let [processor (ArchUtils/getProcessor)]
-    (condp = [(Processor/.getType processor) (Processor/.getArch processor)]
+  (let [processor (ArchUtils/getProcessor)
+        type-and-arch  [(Processor/.getType processor) (Processor/.getArch processor)]]
+    (condp = type-and-arch
       [Processor$Type/AARCH_64 Processor$Arch/BIT_64] "aarch64"
       [Processor$Type/X86      Processor$Arch/BIT_64] "amd64"
-      (*crash!* "Unhandled cpu architecture "  (System/getProperty "os.arch")))))
+      (*crash!* "Unhandled cpu architecture " type-and-arch))))
 
 (defn expected-target-platform
   []
@@ -590,24 +529,37 @@
             expected-platform (expected-target-platform)
             expected-os (expected-os)
             expected-arch (expected-arch)
-            variants (->> variants
-                          (filter (fn [variant]
-                                    (or (= expected-platform (:module/target_platform variant))
-                                        (let [attrs (pull-attributes db (:published_module/id variant))]
-                                          (and (= expected-os (get attrs "os"))
-                                               (= expected-arch (get attrs "arch"))))
-                                        (nil? (:module/target_platform variant))))))]
+            variants      (map (fn [variant]
+                                 (let [attrs (pull-attributes db (:published_module/id variant))]
+                                   (assoc variant :attrs attrs)))
+                               variants)
+            matching-variants (->> variants
+                                   (filter (fn [variant]
+                                             (let [{:keys [attrs]} variant]
+                                               (or (= expected-platform (:module/target_platform variant))
+                                                   (and (= expected-os (get attrs "os"))
+                                                        (= expected-arch (get attrs "arch")))
+                                                   (and (nil? (:module/target_platform variant))
+                                                        (nil? (get attrs "os"))
+                                                        (nil? (get attrs "arch"))))))))
+            variant->string  (fn [variant]
+                               (str (:module/name variant) ". version=" (or (:module/version variant) "<none>") ", target_platform=" (or (:module/target_platform variant) "<none>") ", attrs=" (:attrs variant)))]
+
 
         (cond
-          (= (count variants) 0)
-          (*crash!* "No appropriate variant found for " (:name module) ". version=" (or (:version module) "<none>") ", target_platform=" expected-platform)
+          (= (count matching-variants) 0)
+          (*crash!* "No appropriate variant found for " (:name module) ". version=" (or (:version module) "<none>") ", os=" expected-os ", arch=" expected-arch
+                    "\n    "
+                    (string/join "\n    " (map variant->string variants)))
 
-          (> (count variants) 1)
-          (*crash!* "More than one appropriate variant found for " (:name module))
+          (> (count matching-variants) 1)
+          (*crash!* "More than one appropriate variant found for " (:name module)
+                    "\n    "
+                    (string/join "\n    " (map variant->string variants)))
 
           :else
           (recur (conj picked
-                       (assoc module :cid (:module/cid (first variants))))
+                       (assoc module :cid (:module/cid (first matching-variants))))
                  rest))))))
 
 
@@ -633,7 +585,7 @@
                    (.foregroundColor ANSIColor/RED)
                    (.apply "-"))})
 (defn procure-modules!
-  [{:keys [cache-path artifact-host offline]} modules]
+  [{:keys [cache-path repository offline]} modules]
   (fs/create-dirs cache-path)
   (fs/create-dirs (fs/path cache-path "blobs"))
   (fs/delete-tree (fs/path cache-path "modules"))
@@ -651,7 +603,7 @@
         (when-not (fs/exists? blob-path)
           (if offline
             (*crash!* "Cannot procure artifact for module " (:name module) ", --offline")
-            (let [bytes (-> (http/get (str artifact-host (:cid module))
+            (let [bytes (-> (http/get (str repository (:cid module))
                                       {:as :byte-array})
                             (:body))
                   bytes-cid (cid/bytes->cid-string bytes)]
@@ -680,30 +632,32 @@
   (try
     (xml/parse (io/input-stream (io/file path)))
     (catch SAXParseException _
-      (*crash!* "jvm.xml is malformed"))
+      (*crash!* "jigsaw.xml is malformed"))
     (catch FileNotFoundException _
-      (*crash!* "jvm.xml not found"))))
+      (*crash!* "jigsaw.xml not found"))))
 
 
 (def index-spec
   {:index-url  {:desc    "The host to use to retrieve the index."}
    :cache-path {:desc    "The directory to cache artifacts in."
-                :default (str (fs/path ".jvm"))}})
+                :default (str (fs/path ".jigsaw"))}})
 
 (defn fetch-index
   [{:keys [opts]}]
   (let [path (:index-url opts)
         index-db-path (fs/path (:cache-path opts) "index.db")]
-    (println "Downloading latest index from" path)
+    (println (-> (TerminalStyle/builder)
+                 (.bold)
+                 (.apply "Downloading Latest Index")))
     (fs/create-dirs (:cache-path opts))
-    (let [index-db (:body (http/get path
-                                    {:as :byte-array}))]
+    (let [index-db-response        (http/get path {:as :byte-array})
+          index-db                 (:body index-db-response)]
       (fs/write-bytes (io/file (str index-db-path)) index-db))))
 
 
 (defn resolve
   [{:keys [opts]}]
-  (let [xml (parse-xml "jvm.xml")
+  (let [xml (parse-xml "jigsaw.xml")
         {:keys [providers modules index]} (interpret-xml xml)]
     (fetch-index {:opts {:index-url (or (:index-url opts)
                                         (:url index)
@@ -727,7 +681,7 @@
 
 (def link-spec
   (merge resolve-spec
-         {:output            {:default "jvm"
+         {:output            {:default "jdk"
                               :desc    "The output path for the linked JDK"}
           :minimal           {:coerce :boolean
                               :desc   "Whether to make a minimal JDK from the declared dependencies."
@@ -748,6 +702,7 @@
       (let [jlink-args   (-> []
                              (conj "--output")
                              (conj (str (:output opts)))
+                             (conj "--generate-linkable-runtime")
                              (conj "--module-path")
                              (conj (str (fs/path (:cache-path opts) "modules")))
                              (conj "--add-modules")
@@ -771,7 +726,7 @@
   [{:cmds ["init"]
     :fn   init
     :spec init-spec
-    :doc  "Creates a blank jvm.xml in the current directory"}
+    :doc  "Creates a blank jigsaw.xml in the current directory"}
    {:cmds ["index"]
     :fn   fetch-index
     :spec index-spec
@@ -796,6 +751,6 @@
   (cli/dispatch
     table
     args
-    {:prog "jvm" :help true}))
+    {:prog "jigsaw" :help true}))
 
 ;;  clojure -J--enable-native-access=ALL-UNNAMED -A:cli -M -m dev.mccue.jvm.cli modules

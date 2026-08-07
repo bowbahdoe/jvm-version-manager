@@ -1,20 +1,10 @@
 (ns dev.mccue.repository.repository
-  (:require [clojure.java.io :as io]
-            [clojure.pprint :as pprint]
-            [clojure.set :as set]
-            [clojure.string :as string]
-            [clojure.tools.logging :as log]
+  (:require [clojure.pprint :as pprint]
             [dev.mccue.repository.artifact :as artifact]
-            [dev.mccue.repository.artifact :refer [fetch-artifact]]
+            [dev.mccue.repository.artifact]
             [honey.sql :as sql]
             [next.jdbc :as jdbc])
-  (:import (com.fasterxml.uuid Generators)
-           (java.io InputStream)
-           (java.nio.file Files Path)
-           (java.nio.file.attribute FileAttribute)
-           (java.security MessageDigest)
-           (java.util HexFormat)
-           (org.sqlite SQLiteDataSource)))
+  (:import (com.fasterxml.uuid Generators)))
 
 
 

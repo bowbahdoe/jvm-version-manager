@@ -304,8 +304,8 @@
     procured-artifact))
 
 (defn view-metadata
-  [& {:keys [groupId artifactId]}]
-  (let [url (str "https://repo1.maven.org/maven2/"
+  [& {:keys [repository groupId artifactId]}]
+  (let [url (str repository
                  (string/replace groupId "." "/")
                  "/"
                  artifactId
@@ -320,7 +320,8 @@
       (when (:mvn/groupId artifact)
         (let [metadata (view-metadata
                          {:groupId (:mvn/groupId artifact)
-                          :artifactId (:mvn/artifactId artifact)})]
+                          :artifactId (:mvn/artifactId artifact)
+                          :repository (:mvn/repository artifact)})]
           (let [dbf (DocumentBuilderFactory/newDefaultInstance)
                 db  (DocumentBuilderFactory/.newDocumentBuilder dbf)
                 doc (DocumentBuilder/.parse db (ByteArrayInputStream. (String/.getBytes metadata)))
@@ -500,3 +501,9 @@
                  (rep/persist-module db artifact))
                (catch Exception e (Exception/.printStackTrace e)))))))
 
+(comment
+  (defn dump [d]
+    (let [d (procure d)]
+      (Files/write (.toPath (File. (str (:name (:module-info d)) ".jar")))
+                   (:bytes d)
+                   (into-array java.nio.file.OpenOption [])))))

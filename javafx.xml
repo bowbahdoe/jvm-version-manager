@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<moduleSet name="javafx" version="25.0.1">
+    <module name="javafx.controls" version="25.0.1" />
+    <module name="javafx.graphics" version="25.0.1" />
+    <module name="javafx.base" version="25.0.1" />
+    <when os="windows" arch="aarch64">
+        <module name="org.jspecify" />
+    </when>
+</moduleSet>

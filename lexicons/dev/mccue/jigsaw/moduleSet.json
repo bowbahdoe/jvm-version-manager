@@ -1,5 +1,5 @@
 {
-  "id": "dev.mccue.jvm.module",
+  "id": "dev.mccue.jigsaw.moduleSet",
   "lexicon": 1,
   "defs": {
     "attribute": {
@@ -17,42 +17,69 @@
         }
       }
     },
-    "variant": {
+    "module": {
       "type": "object",
       "required": [
-        "artifact"
+        "name",
+        "version"
       ],
       "properties": {
-        "artifact": {
-          "accept": [
-            "application/zip",
-            "application/java-archive"
-          ],
-          "maxSize": 10000000,
-          "type": "blob"
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
         },
         "attributes": {
           "type": "array",
           "items": {
             "type": "ref",
-            "ref": "dev.mccue.module#attribute"
+            "ref": "dev.mccue.moduleSet#attribute"
+          }
+        }
+      }
+    },
+    "variant": {
+      "type": "object",
+      "required": [
+        "modules"
+      ],
+      "properties": {
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "dev.mccue.moduleSet#module"
+          }
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "type": "ref",
+            "ref": "dev.mccue.moduleSet#attribute"
           }
         }
       }
     },
     "main": {
       "type": "record",
-      "description": "A JVM Module published for wider consumption.",
+      "description": "A set of JVM modules tightly versioned together.",
       "key": "any",
       "record": {
         "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
           "variants": {
             "type": "array",
             "minLength": 1,
             "description": "Variants of the same module at the same 'version'",
             "items": {
               "type": "ref",
-              "ref": "dev.mccue.jvm.module#variant"
+              "ref": "dev.mccue.jvm.moduleSet#variant"
             }
           },
           "createdAt": {
@@ -61,6 +88,8 @@
           }
         },
         "required": [
+          "name",
+          "version",
           "variants",
           "createdAt"
         ],

@@ -59,18 +59,19 @@
 
 (defn ^:descriptor clojure
   []
-  (let [version "1.12.4"]
-    {:name "org.clojure"
+  (let [version "1.12.5"]
+    {:name "clojure"
      :type :jar
      :module-info {:requires [{:module "java.xml"}
                               {:module "java.desktop"}
                               {:module "java.sql"}
                               {:module "jdk.unsupported"
-                               :static true}
-                              {:module "org.clojure.core.specs.alpha"}
-                              {:module "org.clojure.spec.alpha"}]
-                   :version version
+                               #_#_:static true}
+                              {:module "clojure.core.specs.alpha"}
+                              {:module "clojure.spec.alpha"}]
+
                    :open true
+                   :version version
                    :exports (fn [path]
                               (mapv (fn [package]
                                       {:package package})
@@ -78,14 +79,15 @@
      :artifacts [(maven-central-artifact
                    :groupId "org.clojure"
                    :artifactId "clojure"
-                   :version version)]}))
+                   :version version
+                   :classifier "slim")]}))
 
 (defn ^:descriptor spec-alpha
   []
   (let [version "0.6.249"]
-    {:name "org.clojure.spec.alpha"
+    {:name "clojure.spec.alpha"
      :type :jar
-     :module-info {:name "org.clojure.spec.alpha"
+     :module-info {:name "clojure.spec.alpha"
                    :version version
                    :open true
                    :exports (fn [path]
@@ -93,23 +95,179 @@
                                       {:package package})
                                     (mi/packages-in-jar path)))}
      :artifacts [(maven-central-artifact
-                   :groupId "org.clojure"
+                   :groupId "clojure"
                    :artifactId "spec.alpha"
                    :version version)]}))
 
 (defn ^:descriptor core-specs-alpha
   []
   (let [version "0.5.81"]
-    {:name "org.clojure.core.specs.alpha"
+    {:name "clojure.core.specs.alpha"
      :type :jar
-     :module-info {:name "org.clojure.core.specs.alpha"
+     :module-info {:name    "clojure.core.specs.alpha"
                    :version version
-                   :open true}
+                   :open true
+                   :exports (fn [path]
+                              (mapv (fn [package]
+                                      {:package package})
+                                    (mi/packages-in-jar path)))}
+
+
 
      :artifacts [(maven-central-artifact
                    :groupId "org.clojure"
                    :artifactId "core.specs.alpha"
                    :version version)]}))
+
+
+
+(defn ^:descriptor ring-core-protocols
+  []
+  (let [version "1.15.5"]
+    {:name "ring.core.protocols"
+     :type :jar
+     :module-info {:name "ring.core.protocols"
+                   :version version
+                   :open true
+                   :requires [{:module "clojure"}]
+                   :exports (fn [path]
+                              (mapv (fn [package]
+                                      {:package package})
+                                    (mi/packages-in-jar path)))}
+
+     :artifacts [(maven-central-artifact
+                   :groupId "org.ring-clojure"
+                   :artifactId "ring-core-protocols"
+                   :version version
+                   :repository "https://repo.clojars.org/")]}))
+
+(defn ^:descriptor ring-websocket-protocols
+  []
+  (let [version "1.15.5"]
+    {:name "ring.websocket.protocols"
+     :type :jar
+     :module-info {:name "ring.websocket.protocols"
+                   :version version
+                   :open true
+                   :requires [{:module "clojure"}]
+                   :exports (fn [path]
+                              (mapv (fn [package]
+                                      {:package package})
+                                    (mi/packages-in-jar path)))}
+
+     :artifacts [(maven-central-artifact
+                   :groupId "org.ring-clojure"
+                   :artifactId "ring-websocket-protocols"
+                   :version version
+                   :repository "https://repo.clojars.org/")]}))
+
+(defn ^:descriptor crypto-random
+  []
+  (let [version "1.2.1"]
+    {:name "crypto.random"
+     :type :jar
+     :module-info {:name "crypto.random"
+                   :version version
+                   :open true
+                   :requires [{:module "clojure" :mandated true}
+                              {:module "org.apache.commons.codec"}]
+                   :exports (fn [path]
+                              (mapv (fn [package]
+                                      {:package package})
+                                    (mi/packages-in-jar path)))}
+
+     :artifacts [(maven-central-artifact
+                   :groupId "crypto-random"
+                   :artifactId "crypto-random"
+                   :version version
+                   :repository "https://repo.clojars.org/")]}))
+
+(defn ^:descriptor crypto-equality
+  []
+  (let [version "1.2.1"]
+    {:name "crypto.equality"
+     :type :jar
+     :module-info {:name "crypto.equality"
+                   :version version
+                   :open true
+                   :requires [{:module "clojure" :mandated true}]
+                   :exports (fn [path]
+                              (mapv (fn [package]
+                                      {:package package})
+                                    (mi/packages-in-jar path)))}
+
+     :artifacts [(maven-central-artifact
+                   :groupId "crypto-equality"
+                   :artifactId "crypto-equality"
+                   :version version
+                   :repository "https://repo.clojars.org/")]}))
+
+
+(defn ^:descriptor ring-core
+  []
+  (let [version "1.15.5"]
+    {:name "ring.core"
+     :type :jar
+     :module-info {:name "ring.core"
+                   :version version
+                   :open true
+                   :requires [{:module "clojure" :mandated true}
+                              {:module "ring.core.protocols"}
+                              {:module "ring.websocket.protocols"}
+                              {:module "crypto.random"}]
+                   :exports (fn [path]
+                              (mapv (fn [package]
+                                      {:package package})
+                                    (mi/packages-in-jar path)))}
+
+     :artifacts [(maven-central-artifact
+                   :groupId "ring"
+                   :artifactId "ring-core"
+                   :version version
+                   :repository "https://repo.clojars.org/")]}))
+
+
+(defn ^:descriptor nrepl
+  []
+  (let [version "1.7.0"]
+    {:name "nrepl"
+     :type :jar
+     :module-info {:name "nrepl"
+                   :version version
+                   :open true
+                   :requires [{:module "clojure"}
+                              {:module "jdk.attach"}]
+                   :exports  (fn [path]
+                               (mapv (fn [package]
+                                       {:package package})
+                                     (mi/packages-in-jar path)))}
+
+     :artifacts [(maven-central-artifact
+                   :groupId "nrepl"
+                   :artifactId "nrepl"
+                   :version version
+                   :repository "https://repo.clojars.org/")]}))
+
+(defn ^:descriptor hiccup
+  []
+  (let [version "2.0.0"]
+    {:name "hiccup"
+     :type :jar
+     :module-info {:name "hiccup"
+                   :version version
+                   :requires [{:module "org.clojure"}]
+                   :exports  (fn [path]
+                               (mapv (fn [package]
+                                       {:package package})
+                                     (mi/packages-in-jar path)))}
+
+     :artifacts [(maven-central-artifact
+                   :groupId "hiccup"
+                   :artifactId "hiccup"
+                   :version version
+                   :repository "https://repo.clojars.org/")]}))
+
+
 
 (defn ^:descriptor bb
   []
@@ -202,6 +360,16 @@
      :artifacts [(maven-central-artifact
                    :groupId "commons-io"
                    :artifactId "commons-io"
+                   :version version)]}))
+
+(defn ^:descriptor commons-fileupload2
+  []
+  (let [version "2.0.0-M4"]
+    {:name "org.apache.commons.fileupload"
+     :type :jar
+     :artifacts [(maven-central-artifact
+                   :groupId "org.apache.commons"
+                   :artifactId "commons-fileupload2"
                    :version version)]}))
 
 (defn ^:descriptor dev-mccue-jdk-httpserver
